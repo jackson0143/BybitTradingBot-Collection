@@ -1,7 +1,7 @@
 import websocket
 import json
 import pandas as pd
-
+from datetime import timedelta
 
 
 '''
@@ -23,16 +23,21 @@ def on_message(ws, message):
         symbol = liq_info["s"]
         side = liq_info["S"]  #buy/sell 
         #time = liq_info["T"] #time
-        time = pd.to_datetime(liq_info["T"], unit='ms').strftime('%Y-%m-%d %H:%M:%S')
+        utc_time = pd.to_datetime(liq_info["T"], unit='ms')
+
+
+        melbourne_time = utc_time + timedelta(hours=11) 
+
+        formatted_time = melbourne_time.strftime('%Y-%m-%d %H:%M:%S')
         total = round(float(liq_info["q"])*float(liq_info["p"]))
 
         total_str = numerize.numerize(total)
-        new_entry = pd.DataFrame([[symbol, side, time, total]], columns=cols)
+        new_entry = pd.DataFrame([[symbol, side, formatted_time, total]], columns=cols)
 
 
         if (list_tickers == None or not list_tickers or symbol in list_tickers) and (min_price is None or total>=min_price):
             liq_data = pd.concat([liq_data, new_entry], ignore_index=True)
-            print(f"{symbol.ljust(symbol_width)} {side.ljust(side_width)} {str(time).ljust(time_width)} {str(total_str).ljust(total_width)}")
+            print(f"{symbol.ljust(symbol_width)} {side.ljust(side_width)} {str(formatted_time).ljust(time_width)} {str(total_str).ljust(total_width)}")
      
 
 def on_error(ws, error):
