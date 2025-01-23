@@ -3,6 +3,8 @@ from backtesting.test import GOOG
 import pandas as pd
 import pandas_ta as ta
 from backtesting import Backtest, Strategy
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 import numpy as np
 
@@ -42,8 +44,8 @@ def total_signal(fast_ema, slow_ema, close, bbl, bbu, backcandles):
 class Bollinger_EMA(Strategy):
     #ADJUST THESE PARAMS FOR TPSL
     mysize = 0.95
-    slcoef = 1.1 
-    TPSLRatio = 1.5 
+    slcoef = 2.0
+    TPSLRatio = 2.0
    
     #These are indicator params
     fast_ema_len=30
@@ -72,9 +74,9 @@ class Bollinger_EMA(Strategy):
     def next(self):
 
 
-        slatr = (self.slcoef/100) * self.atr[-1]
+        slatr = self.slcoef * self.atr[-1]
         
-        TPSLRatio = self.TPSLRatio/100
+        TPSLRatio = self.TPSLRatio
   
         if self.signal1[-1]==1 and len(self.trades)==0 :
  
@@ -89,16 +91,25 @@ class Bollinger_EMA(Strategy):
             tp1 = self.data.Close[-1] - slatr * TPSLRatio
             self.sell(sl=sl1, tp=tp1, size = self.mysize)
 
+def optimize_plot_BolEMA(bt, showhm = False):
+    stats, heatmap= bt.optimize(
+        slcoef = [i/10 for i in range(10,21)],
+        TPSLRatio = [i/10 for i in range(10,21)],
+        maximize='Return [%]',
+        return_heatmap=True
+    )
+    print(stats['_strategy'])
+    print(stats)
+    bt.plot()
+    if showhm:
+        heatmap_df = heatmap.unstack()
+        plt.figure(figsize = (10,8))
+        sns.heatmap(heatmap_df, annot = True, cmap = 'viridis', fmt='.0f')
+        plt.show()
+    
 
-
-df = GOOG
-
-
-bt = Backtest(df, Bollinger_EMA,  cash=1000)
-stats = bt.optimize(
-    slcoef = range(100, 200, 5),
-    TPSLRatio =range( 100, 200, 5 )
-)
-print(stats)
 # stats = bt.run()
 # print(stats)
+# bt.plot()
+
+

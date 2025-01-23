@@ -23,12 +23,12 @@ def ema_signal(df, current_candle, backcandles=6 ):
 def total_signal(df, current_candle, backcandles = 6):
 
     #if EMA signal is uptrend and we close under bollinger band lower, we return a BUY signal
-    if (ema_signal(df, current_candle, backcandles)==1 and df['Close'].astype(float).iloc[current_candle]<=df['BBL_20_2.0'].iloc[current_candle]
+    if (ema_signal(df, current_candle, backcandles)==1 and df['Close'].iloc[current_candle]<=df['BBL_20_2.0'].iloc[current_candle]
     ):
         return 1
     
     
-    if (ema_signal(df, current_candle, backcandles)==-1 and df['Close'].astype(float).iloc[current_candle]>=df['BBU_20_2.0'].iloc[current_candle]
+    if (ema_signal(df, current_candle, backcandles)==-1 and df['Close'].iloc[current_candle]>=df['BBU_20_2.0'].iloc[current_candle]
     ):
         return -1
     return 0
@@ -77,10 +77,10 @@ class Bollinger_EMA(Strategy):
 
 df = GOOG
 backcandles= 6
-df['Fast_EMA'] = ta.ema(df['Close'].astype(float), length=30)
-df['Slow_EMA'] = ta.ema(df['Close'].astype(float), length=50)
-df['ATR'] = ta.atr(df['High'].astype(float), df['Low'].astype(float),df['Close'].astype(float), length=7)
-bbands = ta.bbands(df['Close'].astype(float), length = 20, std = 2)
+df['Fast_EMA'] = ta.ema(df['Close'], length=30)
+df['Slow_EMA'] = ta.ema(df['Close'], length=50)
+df['ATR'] = ta.atr(df['High'], df['Low'],df['Close'], length=7)
+bbands = ta.bbands(df['Close'], length = 20, std = 2)
 df = df.join(bbands)
 df['EMA_SIGNAL'] = [ema_signal(df, i,backcandles) if i >= backcandles - 1 else 0 for i in range(len(df))]
 df['TOTAL_SIGNAL'] = [total_signal(df, i,backcandles) if i >= backcandles-1 else 0 for i in range(len(df))]
