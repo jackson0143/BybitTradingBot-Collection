@@ -36,6 +36,7 @@ def optimize_plot_rsi_cross(bt,  showhm = False):
     tp_ratio=[i/10 for i in range(1,11)],  
     oversold = range(5,45,5),
     overbought = range(45,95,5),
+    #maximize='Return [%]',
     maximize='Return [%]',
     return_heatmap = True
     

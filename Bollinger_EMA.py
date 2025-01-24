@@ -45,15 +45,18 @@ class Bollinger_EMA(Strategy):
     #ADJUST THESE PARAMS FOR TPSL
     mysize = 0.95
     slcoef = 2.0
-    TPSLRatio = 2.0
-   
-    #These are indicator params
-    fast_ema_len=30
-    slow_ema_len=50
+    TPSLRatio = 1.7
+
+    sl_ratio = 0.1
+    tp_ratio = 0.1
+    #These are indicator params dont change
+    fast_ema_len=9
+    slow_ema_len=21
     atr_val = 7
     bb_len = 20
     std = 2
-    backcandles = 6
+    backcandles = 7
+
 
 
 
@@ -72,35 +75,45 @@ class Bollinger_EMA(Strategy):
 
 
     def next(self):
-
-
         slatr = self.slcoef * self.atr[-1]
-        
         TPSLRatio = self.TPSLRatio
-  
+        sl_val = self.sl_ratio 
+        tp_val = self.tp_ratio 
+        price = self.data.Close[-1]
+
         if self.signal1[-1]==1 and len(self.trades)==0 :
  
            #long position
             sl1 = self.data.Close[-1] - slatr
             tp1 = self.data.Close[-1] + slatr * TPSLRatio
-            self.buy(sl=sl1, tp=tp1, size = self.mysize )
+            self.buy(sl = sl1, tp =tp1, size = self.mysize)
+
+            #self.buy(sl = price*(1-sl_val), tp =price*(1+tp_val), size = self.mysize)
 
             
         elif self.signal1[-1]==-1 and len(self.trades)==0:       
             sl1 = self.data.Close[-1] + slatr
             tp1 = self.data.Close[-1] - slatr * TPSLRatio
-            self.sell(sl=sl1, tp=tp1, size = self.mysize)
+            self.sell(sl = sl1, tp =tp1, size = self.mysize)
+
+            #self.sell(sl =price*(1+sl_val), tp =price*(1-tp_val), size = self.mysize)
+
 
 def optimize_plot_BolEMA(bt, showhm = False):
     stats, heatmap= bt.optimize(
         slcoef = [i/10 for i in range(10,21)],
         TPSLRatio = [i/10 for i in range(10,21)],
-        maximize='Return [%]',
+        #fast_ema_len=range(1,35,1),
+        #slow_ema_len=range(15,60,1),
+        #mysize = [i/100 for i in range(5,100,5)] ,
+        # sl_ratio = [i/10 for i in range(1,11)],
+        # tp_ratio = [i/10 for i in range(1,11)],
+        maximize = 'Return [%]',
         return_heatmap=True
     )
     print(stats['_strategy'])
     print(stats)
-    bt.plot()
+    #bt.plot()
     if showhm:
         heatmap_df = heatmap.unstack()
         plt.figure(figsize = (10,8))
