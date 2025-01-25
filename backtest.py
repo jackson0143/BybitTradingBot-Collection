@@ -1,16 +1,21 @@
 from backtesting.test import GOOG
 from backtesting import Backtest, Strategy
 import pandas as pd
+import pandas_ta as ta
 from pybit.unified_trading import HTTP
 from dotenv import load_dotenv
 import os
 import pytz
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from time import sleep
 
 from binance.client import Client
 load_dotenv()
 
 
 from Bollinger_EMA import Bollinger_EMA, optimize_plot_BolEMA
+from Bollinger_EMA_2 import Bollinger_EMA2, ema_signal, total_signal, optimize_plot_BolEMA2
 from rsi_crossover import RSI_crossover, optimize_plot_rsi_cross
 
 session = HTTP(
@@ -40,19 +45,36 @@ def fetch_market_data(symbol, interval, category, limit=200, start = None):
     df = df.astype(float)
     return df
 '''
-def get_account_balance(ticker):
-    # Retrieve account balance from Bybit
-    response = session.get_wallet_balance(accountType="UNIFIED",coin=ticker)  
+def plot_graph(df_main):
+    df = df_main.copy()
+    df['pointpos'] = [
+    float(row['Low']) - (float(row['High']) - float(row['Low'])) * 0.5 if row['TOTAL_SIGNAL'] == 1 else  # LONG
+    float(row['High']) + (float(row['High']) - float(row['Low'])) * 0.5 if row['TOTAL_SIGNAL'] == -1 else  # SHORT
+    None
+    for _, row in df.iterrows()
+    ]
+    fig = go.Figure(data = go.Candlestick(x=df.index,
+                                      open = df['Open'],
+                                      high = df['High'],
+                                      low = df['Low'],
+                                      close = df['Close']))
+    #fig.update_layout(xaxis_rangeslider_visible=False)
+    fig.add_trace(go.Scatter(x=df.index, y=df['Fast_EMA'], line=dict(color='blue'), name='Fast EMA (9)'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['Slow_EMA'], line=dict(color='red'), name='Slow EMA (21)'))
 
-    
-    if response['retCode'] == 0:
-        balance = response['result']['list'][0]['coin'][0]['walletBalance']
+    fig.add_trace(go.Scatter(x=df.index, y=df['BBU_20_2.0'], line=dict(color='green', width = 1), name='Upper Band'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['BBL_20_2.0'], line=dict(color='orange', width = 1), name='Lower Band'))
+    fig.add_scatter(x= df.index, y=df['pointpos'], mode='markers', marker=dict(size=5, color = "MediumPurple"), name = "entry")
+    fig.update_layout(
+        width=1200,  
+        height=800  
+    )
 
-        print(f'The balance of {ticker} is: {balance}')
-        return float(balance)
-    else:
-        print("Failed to retrieve account balance:", response['ret_msg'])
-        return None
+    fig.show()
+
+    return fig
+
+
     
 def fetch_market_data_binance(symbol, interval,starting_date):
     info=Client().get_historical_klines(symbol=symbol, interval=interval, start_str = starting_date)
@@ -67,65 +89,73 @@ def fetch_market_data_binance(symbol, interval,starting_date):
     df.index = df.index.tz_localize('UTC').tz_convert(melbourne_tz)
     df.index = df.index.tz_localize(None)
     return df
+
 def run_bt_bolEMA():
 
-    '''
-    slcoef = 2.0
-    tpsl = 1.7
-
-    OR
-
-    (good with margins)
-    slcoef = 1.5
-    tpsl = 1.0
-
-    or sl = 1.0, tp=1.5, 
-    but 1.5,1.0 is consistent
-
-   
-
-    '''
-
-    symbol = 'SOLUSDT'
+    symbol = 'HIVEUSDT'
     interval = Client.KLINE_INTERVAL_5MINUTE
     category = 'linear'
-    df = fetch_market_data_binance(symbol,interval, '1 december 2024')
-    
-    bt = Backtest(df, Bollinger_EMA, cash=10000, margin = 1/10)
-    
-    optimize_plot_BolEMA(bt, True)
+    df = fetch_market_data_binance(symbol,interval, '24 january 2025')
 
+    bt = Backtest(df, Bollinger_EMA, cash=10000, commission=0.0006, margin = 1/20, hedging=True)
+    stats = bt.run()
+    print(stats)
+    
+    
+   
+    #plot_graph(df)
+    #sleep(2)
+    #bt.plot()
+    #optimize_plot_BolEMA(bt, True)
+
+
+def run_bt_bolEMA2():
+
+    symbol = 'HIVEUSDT'
+    interval = Client.KLINE_INTERVAL_5MINUTE
+    category = 'linear'
+    backcandles= 6
+    df = fetch_market_data_binance(symbol,interval, '25 january 2025')
+  
+    df['Fast_EMA'] = ta.ema(df['Close'], length=7)
+    df['Slow_EMA'] = ta.ema(df['Close'], length=15)
+    df['ATR'] = ta.atr(df['High'], df['Low'],df['Close'], length=7)
+    bbands = ta.bbands(df['Close'], length = 20, std = 2)
+    df = df.join(bbands)
+    df['EMA_SIGNAL'] = [ema_signal(df, i,backcandles) if i >= backcandles - 1 else 0 for i in range(len(df))]
+    df['TOTAL_SIGNAL'] = [total_signal(df, i,backcandles) if i >= backcandles-1 else 0 for i in range(len(df))]
+    print('applying all signals done')
+    
+
+    bt = Backtest(df, Bollinger_EMA2, cash=10000, commission=0.0006, margin = 1/20, hedging=True)
+    stats = bt.run()
+
+    #stats = optimize_plot_BolEMA2(bt, True)
+    
+    print(stats)
+    print(df[df['TOTAL_SIGNAL']!= 0].head(20))
+    print(stats['_trades'])
+    plot_graph(df)
+    sleep(2)
+    #bt.plot()
+'''
 def run_bt_rsi_crossover():
 
-    '''
-    sl = 0.1
-    tp = 0.1
-    oversold = 20
-    overbought = 85
-    '''
-    symbol = 'SOLUSDT'
+    symbol = 'BTCUSDT'
     interval = Client.KLINE_INTERVAL_5MINUTE
     category = 'linear'
     df = fetch_market_data_binance(symbol,interval, '1 december 2024')
     bt = Backtest(df, RSI_crossover, cash=10000)
-    optimize_plot_rsi_cross(bt, True)
-
+    print(bt.run())
+    
+    #optimize_plot_rsi_cross(bt, True)
+'''
 if __name__ == "__main__":
-    symbol = 'SOLUSDT'
-    interval = Client.KLINE_INTERVAL_5MINUTE
-    category = 'linear'
-    df = fetch_market_data_binance(symbol,interval, '1 december 2024')
-    #df = GOOG
-    '''
-    binance 2.0  1.7-1.8
-    '''
+    #symbol = 'SOLUSDT'
+    #interval = Client.KLINE_INTERVAL_5MINUTE
+    #category = 'linear'
 
-    print('PRINTING BINANCE DATA')
-    bt = Backtest(df, Bollinger_EMA, cash=10000, commission=0.0006, margin = 1/5)
-    #print(bt.run())
-    optimize_plot_BolEMA(bt, True)
-    '''bybit 2.0 1.7
-    '''
-
-  
+    #run_bt_bolEMA()
+    #run_bt_bolEMA()
+    run_bt_bolEMA2()
   

@@ -20,6 +20,8 @@ session = HTTP(
     api_key=os.getenv('API_DEMO_KEY'),
     api_secret=os.getenv('API_DEMO_SECRET'),
 )
+def get_time():
+    return pd.to_numeric(session.get_server_time()['result']['timeSecond'])
 
 
 def get_account_balance(ticker):
@@ -58,18 +60,13 @@ def get_klines(symbol, interval, category, limit=200,  start = None):
         df.index = df.index.tz_localize('UTC').tz_convert(melbourne_tz)
         df.index = df.index.tz_localize(None)
         
-
-
-
         df = df[::-1]
         df = df.astype(float)
 
-        df['RSI'] = ta.rsi(df['Close'].astype(float), length = 14)
-        df['Fast_EMA'] = ta.ema(df['Close'].astype(float), length=30)
-        df['Slow_EMA'] = ta.ema(df['Close'].astype(float), length=50)
-
+        #df['RSI'] = ta.rsi(df['Close'].astype(float), length = 14)
+        df['Fast_EMA'] = ta.ema(df['Close'].astype(float), length=7)
+        df['Slow_EMA'] = ta.ema(df['Close'].astype(float), length=15)
         df['ATR'] = ta.atr(df['High'].astype(float), df['Low'].astype(float),df['Close'].astype(float), length=7)
-
         bbands = ta.bbands(df['Close'].astype(float), length = 20, std = 2)
         df = df.join(bbands)
         return df
@@ -79,7 +76,11 @@ def get_klines(symbol, interval, category, limit=200,  start = None):
 def get_positions(category):
     try:
         res = session.get_positions(category = category,  settleCoin='USDT')['result']['list']
-        
+        if not res:
+            print("\n" + "-" * 80 + "\n")
+            print("No positions found.")
+            print("\n" + "-" * 80 + "\n")
+            return []
 
         data = []
         for position in res:
@@ -103,9 +104,7 @@ def get_positions(category):
         print("\n" + "-" * 80 + "\n")
         
 
-        pos = []
-        for elem in res: 
-            pos.append(elem['symbol'])
+        pos = pos = [elem['symbol'] for elem in res]
         return pos
     except Exception as err:
         print(err)
@@ -127,11 +126,20 @@ def set_mode(symbol, category, leverage) :
         buyLeverage=str(leverage),
         sellLeverage=str(leverage)
 )       
+
         print(res)
     except Exception as err:
         print(err)
-
-
+def set_position_mode(symbol, category, mode):
+    try:
+        res = session.switch_position_mode(
+            category = category,
+            symbol = symbol,
+            mode = mode
+        )
+        return res
+    except Exception as err:
+        print(err)
 def get_precisions(symbol):
     try:
         resp = session.get_instruments_info(
@@ -161,8 +169,13 @@ def place_order(symbol, side, mysize,price, stop_loss=None, take_profit=None, le
     total_bal = get_account_balance('USDT')
     balance = total_bal[0]
 
+    mark_price = float(session.get_tickers(
+        category='linear',
+        symbol=symbol
+    )['result']['list'][0]['markPrice'])
+
     
-    qty_before_lev = (balance*mysize)/float(price)
+    qty_before_lev = (balance*mysize)/float(mark_price)
     qty_final = round(qty_before_lev*leverage,qty_precision)
     if side == 1:
         try:
@@ -170,15 +183,16 @@ def place_order(symbol, side, mysize,price, stop_loss=None, take_profit=None, le
                 category = "linear",
                 symbol = symbol,
                 side = 'Buy',
-                orderType = "Limit",
+                orderType = "Market",
                 qty = str(qty_final),
-                price=str(price),
+               #price=str(price),
                 take_profit = str(take_profit),
                 stop_loss = str(stop_loss),
    
                 tpslMode = 'Full'
 
             )
+            print(f"Placed a LONG order at ${mark_price}, SL = {take_profit} TP = {stop_loss}")
         except Exception as err:
             print(err)
     if side == -1:
@@ -196,6 +210,7 @@ def place_order(symbol, side, mysize,price, stop_loss=None, take_profit=None, le
                 tpslMode = 'Full'
 
             )
+            print(f"Placed a SHORT order at ${mark_price}, SL = {take_profit} TP = {stop_loss}")
         except Exception as err:
             print(err)
 
@@ -204,11 +219,9 @@ def place_order(symbol, side, mysize,price, stop_loss=None, take_profit=None, le
 #STRATEGY TIME
 
 
-def ema_signal(df, current_candle, backcandles=7 ):
-    df_copy = df.copy()
-    start = max(0, current_candle - backcandles) #starts at 0, or whatever candle we can reach . ADD 1 if we want to include current candle right?
-    end = current_candle     #add 1 here too
-    df_new = df_copy.iloc[start:end]
+def ema_signal(df, current_candle, backcandles ):
+    start = max(0, current_candle - backcandles)
+    df_new = df.iloc[start:current_candle ]
 
     if all(df_new['Fast_EMA'] > df_new['Slow_EMA']):
         return 1  # Uptrend
@@ -218,56 +231,72 @@ def ema_signal(df, current_candle, backcandles=7 ):
         return 0  
     
 
-def total_signal(df, current_candle, backcandles = 7):
+def total_signal(df, current_candle, backcandles):
 
+    ema_sig = ema_signal(df, current_candle, backcandles)
     #if EMA signal is uptrend and we close under bollinger band lower, we return a BUY signal
-    if (ema_signal(df, current_candle, backcandles)==1 and df['Close'].iloc[current_candle]<=df['BBL_20_2.0'].iloc[current_candle]
+    if (ema_sig==1 and df['Close'].iloc[current_candle]<=df['BBL_20_2.0'].iloc[current_candle]
     ):
         return 1
     
     
-    if (ema_signal(df, current_candle, backcandles)==-1 and df['Close'].iloc[current_candle]>=df['BBU_20_2.0'].iloc[current_candle]
+    elif (ema_sig==-1 and df['Close'].iloc[current_candle]>=df['BBU_20_2.0'].iloc[current_candle]
     ):
         return -1
     return 0
 
 def run():
-#BOLLINGER EMA PARAMS
-    slcoef = 2.0
+    #BOLLINGER EMA PARAMS
+    '''
+        # fast_ema_len=7
+        # slow_ema_len=15
+        # atr_val = 7
+        # bb_len = 20
+        # std = 2
+    '''
+    slcoef = 1.9
     TPSLRatio = 1.7
-    fast_ema_len=9
-    slow_ema_len=21
-    atr_val = 7
-    bb_len = 20
-    std = 2
-    backcandles = 7
+    backcandles = 6
+
+
+
 
     mysize = 0.05
-
-
-
-    
     interval = '5'
     category = 'linear'
-    leverage = 5
-    #symbols= get_tickers()
-    max_pos = 50
-    allowed_positions = ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', '1000PEPEUSDT']
+    leverage = 20
+
+    max_pos = 19
+    allowed_positions = ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', '1000PEPEUSDT', 'XRPUSDT', 'ENAUSDT', 'LINKUSDT', 'HIVEUSDT', 'SHIB1000USDT']
+    print("Starting the program...")
+    
     while True:
         sleep(2)
         balance, avail_balance = get_account_balance('USDT')
+        print('\n')
+        timestamp = pd.to_datetime(get_time(), unit='s')
+        melbourne_tz = pytz.timezone('Australia/Melbourne')
+        melbourne_time = timestamp.tz_localize('UTC').tz_convert(melbourne_tz)
+        melbourne_time_final = melbourne_time.tz_localize(None)
+        print(f'Current time: {melbourne_time_final}')
+
         print(f'Margin balance: {balance}')
         print(f'Available balance: {avail_balance}')
+
         pos = get_positions(category)
         
         
         #for every element in our allowed position list
         for elem in allowed_positions:
+            '''
             if elem in pos:
-                print(f'Already have an position for {elem}, skipping it')
+                print(f'Position for {elem} already exists, skipping...')
                 continue
-
+            '''
             df = get_klines(elem, interval, category)
+            if df is None or df.empty:
+                print(f"Failed to fetch data for {elem}. Skipping...")
+                continue
             last_row = df.iloc[-1]
            
             current_candle =last_row['Close']
@@ -275,18 +304,18 @@ def run():
            
             slatr =slcoef * df['ATR'].iloc[-1]
             print( f"{elem} {signal} || Date: {df.index[-1]} Open: {last_row['Open']} High: {last_row['High']}  Low: {last_row['Low']} Close: {last_row['Close']} ")
-        
+           
 
 
             #long position
             if signal==1 and len(pos)<max_pos:
                 set_mode(elem, category, leverage)
+                set_position_mode(elem, category, 3)
                 sleep(2)
                 sl1 = current_candle - slatr
                 tp1 = current_candle + slatr * TPSLRatio
-                #print(f"Long SL={sl1}, TP={tp1}, Entry={self.data.Close[-1]} at {self.data.index[-1]}")
                 place_order(elem, signal, mysize, current_candle, stop_loss=sl1, take_profit=tp1, leverage=leverage)
-                print(f"Placed a LONG order at ${current_candle}, SL = {sl1} TP = {tp1}")
+                
                 
             elif signal==-1 and len(pos)<max_pos:      
                 set_mode(elem, category, leverage)
@@ -294,11 +323,9 @@ def run():
                 #Short position
                 sl1 = current_candle + slatr
                 tp1 = current_candle - slatr * TPSLRatio
-                #print(f"Short SL={sl1}, TP={tp1}, Entry={self.data.Close[-1]}")
                 place_order(elem, signal, mysize, current_candle, stop_loss=sl1, take_profit=tp1, leverage=leverage)
-                print(f"Placed a LONG order at ${current_candle}, SL = {sl1} TP = {tp1}")
-            
-        sleep(120)
+                
+        sleep(30)
 run()
 
 # mysize = 0.05

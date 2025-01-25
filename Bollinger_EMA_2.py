@@ -3,14 +3,13 @@ from backtesting.test import GOOG
 import pandas as pd
 import pandas_ta as ta
 from backtesting import Backtest, Strategy
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
-
-def ema_signal(df, current_candle, backcandles=6 ):
-    df_copy = df.copy()
-    start = max(0, current_candle - backcandles) #starts at 0, or whatever candle we can reach . ADD 1 if we want to include current candle right?
-    end = current_candle     #add 1 here too
-    df_new = df_copy.iloc[start:end]
+def ema_signal(df, current_candle, backcandles ):
+    start = max(0, current_candle - backcandles)
+    df_new = df.iloc[start:current_candle ]
 
     if all(df_new['Fast_EMA'] > df_new['Slow_EMA']):
         return 1  # Uptrend
@@ -20,72 +19,94 @@ def ema_signal(df, current_candle, backcandles=6 ):
         return 0  
     
 
-def total_signal(df, current_candle, backcandles = 6):
-
+def total_signal(df, current_candle, backcandles):
+    ema_sig = ema_signal(df, current_candle, backcandles)
     #if EMA signal is uptrend and we close under bollinger band lower, we return a BUY signal
-    if (ema_signal(df, current_candle, backcandles)==1 and df['Close'].iloc[current_candle]<=df['BBL_20_2.0'].iloc[current_candle]
+    if (ema_sig==1 and df['Close'].iloc[current_candle]<=df['BBL_20_2.0'].iloc[current_candle]
     ):
         return 1
     
     
-    if (ema_signal(df, current_candle, backcandles)==-1 and df['Close'].iloc[current_candle]>=df['BBU_20_2.0'].iloc[current_candle]
+    elif (ema_sig==-1 and df['Close'].iloc[current_candle]>=df['BBU_20_2.0'].iloc[current_candle]
     ):
         return -1
     return 0
 
-def SIGNAL():
+def SIGNAL(df):
     return df['TOTAL_SIGNAL']
 
-class Bollinger_EMA(Strategy):
-    mysize = 0.95
-    slcoef = 1.1 # Reduce stop-loss coefficient
-    TPSLRatio = 1.5 # Reduce take-profit ratio
+class Bollinger_EMA2(Strategy):
+    mysize = 0.05
+    slcoef = 1.9
+    TPSLRatio = 1.7
     rsi_length = 16
-    
+    #backcandles= 6
  
 
     def init(self):
         super().init()
-    
-        self.signal1 = self.I(SIGNAL)
+
+        self.signal1 = self.I(SIGNAL, self.data.df)
         #df['RSI']=ta.rsi(df.Close, length=self.rsi_length)
 
     def next(self):
         super().next()
-        
         slatr = self.slcoef * self.data.ATR[-1]
-        
         TPSLRatio = self.TPSLRatio
-  
-        if self.signal1[-1]==1 and len(self.trades)==0 :
- 
+ # and len(self.trades)==0
+        if self.signal1[-1]==1  :
+       
            #long position
             sl1 = self.data.Close[-1] - slatr
             tp1 = self.data.Close[-1] + slatr * TPSLRatio
-            #print(f"Long SL={sl1}, TP={tp1}, Entry={self.data.Close[-1]} at {self.data.index[-1]}")
             self.buy(sl=sl1, tp=tp1, size = self.mysize )
 
             
-        elif self.signal1[-1]==-1 and len(self.trades)==0:       
+        if self.signal1[-1]==-1:       
             #Short position
+        
             sl1 = self.data.Close[-1] + slatr
             tp1 = self.data.Close[-1] - slatr * TPSLRatio
-            #print(f"Short SL={sl1}, TP={tp1}, Entry={self.data.Close[-1]}")
             self.sell(sl=sl1, tp=tp1, size = self.mysize)
 
+def optimize_plot_BolEMA2(bt, showhm = False):
+    
+        #overbought = range(50,95,5),
+        #oversold = range(5,50,5),
+        #rsi_window = range(2,20,2),
+
+        #fast_ema_len=range(1,15,1),
+        #slow_ema_len=range(15,35,1),
+    stats, heatmap = bt.optimize(
+        slcoef=[i / 10 for i in range(10, 21)],  # Range: 1.0 to 2.0
+        TPSLRatio=[i / 10 for i in range(10, 21)],  # Range: 1.0 to 2.0
+        #fast_ema_len=range(1,15,1),
+        #slow_ema_len=range(15,35,1),
+        maximize='Return [%]',
+        #maximize = 'Max. Drawdown [%]',
+        return_heatmap=True
+    )
+
+    
+    print(stats['_strategy'])
+    print(stats)
+    #bt.plot()
+    if showhm:
+        heatmap_df = heatmap.unstack()
+        plt.figure(figsize = (10,8))
+        sns.heatmap(heatmap_df, annot = True, cmap = 'viridis', fmt='.0f')
+        plt.show()
+    return stats
+# df = GOOG
+# backcandles = 6
+# df['Fast_EMA'] = ta.ema(df['Close'], length=30)
+# df['Slow_EMA'] = ta.ema(df['Close'], length=50)
+# df['ATR'] = ta.atr(df['High'], df['Low'],df['Close'], length=7)
+# bbands = ta.bbands(df['Close'], length = 20, std = 2)
+# df = df.join(bbands)
+# df['EMA_SIGNAL'] = [ema_signal(df, i,backcandles) if i >= backcandles - 1 else 0 for i in range(len(df))]
+# df['TOTAL_SIGNAL'] = [total_signal(df, i,backcandles) if i >= backcandles-1 else 0 for i in range(len(df))]
 
 
-df = GOOG
-backcandles= 6
-df['Fast_EMA'] = ta.ema(df['Close'], length=30)
-df['Slow_EMA'] = ta.ema(df['Close'], length=50)
-df['ATR'] = ta.atr(df['High'], df['Low'],df['Close'], length=7)
-bbands = ta.bbands(df['Close'], length = 20, std = 2)
-df = df.join(bbands)
-df['EMA_SIGNAL'] = [ema_signal(df, i,backcandles) if i >= backcandles - 1 else 0 for i in range(len(df))]
-df['TOTAL_SIGNAL'] = [total_signal(df, i,backcandles) if i >= backcandles-1 else 0 for i in range(len(df))]
-
-bt = Backtest(df, Bollinger_EMA,  cash=1000)
-
-stats = bt.run()
-print(stats)
+# bt = Backtest(df, Bollinger_EMA2, cash=10000, commission=0.0006, margin = 1/5)
+# print(bt.run())

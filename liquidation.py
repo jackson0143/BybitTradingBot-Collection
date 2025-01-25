@@ -48,6 +48,8 @@ def on_close(ws):
 
 def on_open(ws):
     print("Connected")
+    print("If a ticker has the side BUY, that means the price went up too much and liquidated a short position")
+    print("If a ticker has the side SELL, that means the price went down too much and liquidated a long position")
     print(f"{'Symbol'.ljust(symbol_width)} {'Side'.ljust(side_width)} {'Time'.ljust(time_width)} {'Total'.ljust(total_width)}")
 
 
