@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
+from backtesting.lib import crossover, TrailingStrategy 
 
 import numpy as np
 
@@ -40,27 +41,31 @@ def total_signal(fast_ema, slow_ema, close, bbl, bbu, backcandles):
             return 0
     return [compute_signal(i) if i >= backcandles-1 else 0 for i in range(len(close))]
 
-
-class Bollinger_EMA(Strategy):
-    #ADJUST THESE PARAMS FOR TPSL
+#class Bollinger_EMA(Strategy):
+class Bollinger_EMA(TrailingStrategy):
     mysize = 0.05
     slcoef = 1.9
     TPSLRatio = 1.7
+
+
+
+
 
     #These are indicator params dont change
     fast_ema_len=7
     slow_ema_len=15
     atr_val = 7
     bb_len = 20
-    std = 2
+    std = 2.5
 
 
     backcandles = 6
 
-
+    stop_range =1.7
 
     def init(self):
- 
+        super().init()
+        super().set_trailing_sl(self.stop_range)
         self.slow_ema = self.I(ta.ema, pd.Series(self.data.Close), self.slow_ema_len)
         self.fast_ema = self.I(ta.ema, pd.Series(self.data.Close), self.fast_ema_len)
         #self.rsi = self.I(ta.rsi, pd.Series(self.data.Close), self.rsi_window)
@@ -74,6 +79,7 @@ class Bollinger_EMA(Strategy):
 
 
     def next(self):
+        super().next()
         slatr = self.slcoef * self.atr[-1]
         TPSLRatio = self.TPSLRatio
 
@@ -84,15 +90,16 @@ class Bollinger_EMA(Strategy):
            #long position
             sl1 = self.data.Close[-1] - slatr
             tp1 = self.data.Close[-1] + slatr * TPSLRatio
-            self.buy(sl = sl1, tp =tp1, size = self.mysize)
-
+            #self.buy(sl=sl1, tp=tp1, size = self.mysize )
+            self.buy( size = self.mysize )
          
 
             
         elif self.signal1[-1]==-1:       
             sl1 = self.data.Close[-1] + slatr
             tp1 = self.data.Close[-1] - slatr * TPSLRatio
-            self.sell(sl = sl1, tp =tp1, size = self.mysize)
+            #self.sell(sl=sl1, tp=tp1, size = self.mysize)
+            self.sell( size = self.mysize)
 
           
 
@@ -103,13 +110,17 @@ def optimize_plot_BolEMA(bt, showhm = False):
         #oversold = range(5,50,5),
         #rsi_window = range(2,20,2),
         #slcoef = [i/10 for i in range(10,21)],
-        TPSLRatio = [i/10 for i in range(10,21)],
+        #TPSLRatio = [i/10 for i in range(10,21)],
         #fast_ema_len=range(1,15,1),
         #slow_ema_len=range(15,35,1),
         #mysize = [i/100 for i in range(5,100,5)] ,
         # sl_ratio = [i/10 for i in range(1,11)],
         # tp_ratio = [i/10 for i in range(1,11)],
         backcandles= range(1, 15, 1),
+        #bb_len = range(2,30,2),
+        #slow_ema_len = range(15, 35, 1),
+        stop_range= [i / 10 for i in range(1, 31)],
+        std = [i/10 for i in range(21,41)],
         maximize = 'Return [%]',
         return_heatmap=True
     )
