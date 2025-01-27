@@ -174,9 +174,9 @@ def run_bt_bolEMA(symbol, interval, category, df):
     interval = interval
     category = category
 
-    bt = Backtest(df, Bollinger_EMA, cash=10000, commission=0.0006, margin = 1/20, hedging=True)
+    bt = Backtest(df, Bollinger_EMA, cash=100000, commission=0.0006, margin = 1/40, hedging=True)
     stats = bt.run()
-    print(stats)
+   
     return(stats)
 
 def run_bt_bolEMA2(symbol, interval, category, df_old):
@@ -197,15 +197,17 @@ def run_bt_bolEMA2(symbol, interval, category, df_old):
 
     bt = Backtest(df, Bollinger_EMA2, cash=100000, commission=0.0006, margin = 1/20, hedging=True)
     stats = bt.run()
+    #stats = optimize_plot_BolEMA2(bt, True)
+    #print(f"Results for {symbol} with params {stats['_strategy']}:")
+    #print(stats)    
 
-    print(stats)    
-    print(df[df['TOTAL_SIGNAL']!= 0].head(20))
-    print(stats['_trades'])
+    # print(df[df['TOTAL_SIGNAL']!= 0].head(20))
+    # print(stats['_trades'])
 
-    plot_graph(df)
-    sleep(5)
+    #plot_graph(df)
+    #sleep(5)
 
-    bt.plot()
+    #bt.plot()
     '''
     '''
     
@@ -226,25 +228,36 @@ def run_test_strategy(symbol, interval, category, df):
     symbol = symbol
     interval = interval
     category = category
-    bt = Backtest(df, TestStrategy, cash=100000, commission=0.0006)
+    bt = Backtest(df, TestStrategy, cash=100000, commission=0.0006, margin = 1/20)
     #stats = optimize_plot_test(bt, True)
     stats = bt.run()
-    #print_stats(stats)
-
+    #print(f"Results for {symbol} with params {stats['_strategy']}:")
+    #print(stats)
     #bt.plot()
     return stats
 
 if __name__ == "__main__":
 
-    symbol='HIVEUSDT'
+    symbol='BTCUSDT'
     interval = Client.KLINE_INTERVAL_5MINUTE
     category = 'linear'
-    start_date = '1 December 2024'
+    start_date = '20 January 2025'
     df = fetch_market_data_binance(symbol,interval, start_date)
     #,  'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT
-    symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT']
-    #results_df = mass_run_symbols(symbols, interval, category, start_date, run_test_strategy)
-    
+    symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'RUNEUSDT', 'WIFUSDT', 'AVAXUSDT']
+    results_df = mass_run_symbols(symbols, interval, category, start_date, run_bt_bolEMA2)
+    #results_df = mass_run_symbols(symbols, interval, category, start_date, run_bt_bolEMA2)
     #run_bt_bolEMA(symbol, interval, category, df)
     #run_bt_bolEMA2(symbol, interval, category, df)
-    run_test_strategy(symbol, interval, category, df)
+    #run_test_strategy(symbol, interval, category, df)
+    # symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'HIVEUSDT']
+    # for symbol in symbols:
+    #     print( "-" * 40 + "\n")
+    #     print(f"Running strategy for {symbol}...")
+        
+    #     # Fetch the market data for the symbol
+    #     df = fetch_market_data_binance(symbol, interval, start_date)
+        
+    #     # Run the test strategy for the symbol
+    #     run_bt_bolEMA2(symbol, interval, category, df)
+        

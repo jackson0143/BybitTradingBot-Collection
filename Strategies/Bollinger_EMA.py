@@ -116,12 +116,13 @@ def optimize_plot_BolEMA(bt, showhm = False):
         #mysize = [i/100 for i in range(5,100,5)] ,
         # sl_ratio = [i/10 for i in range(1,11)],
         # tp_ratio = [i/10 for i in range(1,11)],
-        backcandles= range(1, 15, 1),
+        #backcandles= range(1, 15, 1),
         #bb_len = range(2,30,2),
         #slow_ema_len = range(15, 35, 1),
         stop_range= [i / 10 for i in range(1, 31)],
-        std = [i/10 for i in range(21,41)],
-        maximize = 'Return [%]',
+        mysize = [i/100 for i in range(5,100,5)],
+        #std = [i/10 for i in range(21,41)],
+        maximize = 'Sharpe Ratio',
         return_heatmap=True
     )
    

@@ -11,16 +11,19 @@ from backtesting.lib import crossover, TrailingStrategy
 
 import numpy as np
 
-class TestStrategy(Strategy):
-#class TestStrategy(TrailingStrategy):
+#class TestStrategy(Strategy):
+class TestStrategy(TrailingStrategy):
     rsi_period = 14
     ema_period = 200
 
 
     bb_length = 83
     bb_std = 5
-    size = 0.95
+    size = 0.1
+    stop_range = 2.0
     def init(self):
+        super().init()
+        super().set_trailing_sl(self.stop_range)
         self.rsi = self.I(ta.rsi, pd.Series(self.data.Close), self.rsi_period)
         self.ema = self.I(ta.ema, pd.Series(self.data.Close), self.ema_period)
         
@@ -31,6 +34,7 @@ class TestStrategy(Strategy):
 
         
     def next(self):
+        super().next()
         price = self.data.Close[-1]
         bb_width = self.bbu[-1] - self.bbl[-1]
 
@@ -54,22 +58,31 @@ class TestStrategy(Strategy):
                 self.position.close()
                 self.sell(size=self.size)
 def optimize_plot_test(bt, showhm = False):
-    stats, heatmap = bt.optimize(
-        bb_length = range(5,90,2),
-        #bb_std = range(0,7,1),
-        bb_std =  [i/10 for i in range(20,81,5)],
-        maximize='Return [%]',
-        #maximize = 'Max. Drawdown [%]',
-        return_heatmap=True
-    )
     
-
- 
-    #bt.plot()
     if showhm:
+        stats, heatmap = bt.optimize(
+            bb_length = range(2,100,1),
+            #stop_range=[i / 10 for i in range(4, 51)],
+            bb_std=[i / 10 for i in range(40, 61, 5)],
+            maximize='Sharpe Ratio',
+            return_heatmap=True
+        )
+
+        # Plot the heatmap
         heatmap_df = heatmap.unstack()
-        plt.figure(figsize = (10,8))
-        sns.heatmap(heatmap_df, annot = True, cmap = 'viridis', fmt='.0f')
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(heatmap_df, annot=True, cmap='viridis', fmt='.0f')
         plt.show()
-    return stats
-    
+
+        return stats  # Return stats for further processing
+
+    else:
+        # Only stats are returned when return_heatmap=False
+        stats = bt.optimize(
+            stop_range=[i / 10 for i in range(4, 51)],
+            bb_std=[i / 10 for i in range(40, 61, 5)],
+            maximize='Sharpe Ratio',
+            return_heatmap=False
+        )
+
+        return stats  # Return stats for further processing

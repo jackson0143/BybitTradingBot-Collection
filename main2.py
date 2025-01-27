@@ -67,7 +67,7 @@ def get_klines(symbol, interval, category, limit=200,  start = None):
         df['Fast_EMA'] = ta.ema(df['Close'], length=7)
         df['Slow_EMA'] = ta.ema(df['Close'], length=15)
         df['ATR'] = ta.atr(df['High'], df['Low'],df['Close'], length=7)
-        bbands = ta.bbands(df['Close'], length = 20, std = 2.5)
+        bbands = ta.bbands(df['Close'], length = 83, std = 5.0)
         df = df.join(bbands)
         return df
     
@@ -214,36 +214,6 @@ def place_order(symbol, side, mysize,price, stop_loss=None, take_profit=None, le
         except Exception as err:
             print(err)
 
-
-###############
-#STRATEGY TIME
-
-
-def ema_signal(df, current_candle, backcandles ):
-    start = max(0, current_candle - backcandles)
-    df_new = df.iloc[start:current_candle ]
-
-    if all(df_new['Fast_EMA'] > df_new['Slow_EMA']):
-        return 1  # Uptrend
-    elif all(df_new['Fast_EMA'] < df_new['Slow_EMA']):
-        return -1  # Downtrend
-    else:
-        return 0  
-    
-
-def total_signal(df, current_candle, backcandles):
-
-    ema_sig = ema_signal(df, current_candle, backcandles)
-    #if EMA signal is uptrend and we close under bollinger band lower, we return a BUY signal
-    if (ema_sig==1 and df['Close'].iloc[current_candle]<=df['BBL_20_2.5'].iloc[current_candle]
-    ):
-        return 1
-    
-    
-    elif (ema_sig==-1 and df['Close'].iloc[current_candle]>=df['BBU_20_2.5'].iloc[current_candle]
-    ):
-        return -1
-    return 0
 def place_order_trailstop(symbol, side, mysize,price,trailing_stop_distance, leverage=10):
     price_precision, qty_precision = get_precisions(symbol)
     total_bal = get_account_balance('USDT')
@@ -308,30 +278,44 @@ def place_order_trailstop(symbol, side, mysize,price,trailing_stop_distance, lev
         except Exception as err:
             print(err)
 
+###############
+#STRATEGY TIME
+
+
+
+
+def total_signal(df):
+    bb_width = df['BBL_83_5.0'][-1] - df['BBL_83_5.0'][-1]
+    if bb_width < 0.01 * df['Close'].iloc[-1]:
+        return 0
+    if df['Close'].iloc[-2] > df['BBL_83_5.0'][-2] and df['Close'].iloc[-1]  < df['BBL_83_5.0'][-1]:
+    #if EMA signal is uptrend and we close under bollinger band lower, we return a BUY signal
+        return 1
+    
+    
+    elif df['Close'].iloc[-2] < df['BBU'].iloc[-2] and df['Close'].iloc[-1] > df['BBU'].iloc[-1]:
+        return -1
+    
+    return 0
+
 
 def run():
     #BOLLINGER EMA PARAMS
     '''
-        # fast_ema_len=7
-        # slow_ema_len=15
-        # atr_val = 7
-        # bb_len = 20
-        # std = 2.5
+    bb_length = 83
+    bb_std = 5
     '''
-    slcoef = 1.9
-    TPSLRatio = 1.7
-    backcandles = 6
-
+    stop_range = 2.0
 
 
 
     mysize = 0.05
     interval = '5'
     category = 'linear'
-    leverage = 20
-    n_atr = 1.7
+    leverage = 5
+
     max_pos = 19
-    allowed_positions = ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', '1000PEPEUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT', 'SHIB1000USDT', 'RUNEUSDT', 'AVAXUSDT', 'POPCATUSDT', 'ONDOUSDT', 'PNUTUSDT', 'MEUSDT', 'SWARMSUSDT']
+    allowed_positions = ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', '1000PEPEUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT','SHIB1000USDT',  'AVAXUSDT']
     print("Starting the program...")
     
     while True:
@@ -365,15 +349,15 @@ def run():
 
            
             current_candle =last_row['Close']
-            signal = total_signal(df, len(df)-1, backcandles)
+            signal = total_signal(df)
 
             
-            trailing_stop_distance = n_atr* df['ATR'].iloc[-1]# Trailing stop in absolute terms
+            trailing_stop_distance = stop_range* df['ATR'].iloc[-1]# Trailing stop in absolute terms
            
             slatr =slcoef * df['ATR'].iloc[-1]
             print( f"{elem} {signal} || Date: {df.index[-1]} Open: {last_row['Open']} High: {last_row['High']}  Low: {last_row['Low']} Close: {last_row['Close']} ")
 
-                
+
             if signal==1 and len(pos)<max_pos:
                 set_mode(elem, category, leverage)
                 set_position_mode(elem, category, 3)
@@ -390,56 +374,9 @@ def run():
                 sl1 = current_candle + slatr
                 tp1 = current_candle - slatr * TPSLRatio
                 place_order_trailstop(elem, signal, mysize, current_candle, leverage=leverage, trailing_stop_distance=trailing_stop_distance)
-      
             '''
 
-            #long position
-            if signal==1 and len(pos)<max_pos:
-                set_mode(elem, category, leverage)
-                set_position_mode(elem, category, 3)
-                sleep(2)
-                sl1 = current_candle - slatr
-                tp1 = current_candle + slatr * TPSLRatio
-                place_order(elem, signal, mysize, current_candle, stop_loss=sl1, take_profit=tp1, leverage=leverage)
-                
-                
-            elif signal==-1 and len(pos)<max_pos:      
-                set_mode(elem, category, leverage)
-                sleep(2)
-                #Short position
-                sl1 = current_candle + slatr
-                tp1 = current_candle - slatr * TPSLRatio
-                place_order(elem, signal, mysize, current_candle, stop_loss=sl1, take_profit=tp1, leverage=leverage)
+        
             '''
-
         sleep(30)
 run()
-#set_position_mode(symbol='ENAUSDT', category='linear', mode=3)  # Hedge Mode
-
-#place_order_trailstop('ENAUSDT', -1, 0.05,0.8745,0.0102, leverage=1)
-    
-#print(set_position_mode('ENAUSDT', 'linear',3 ))
-# mysize = 0.05
-
-
-
-# symbol = 'BTCUSDT'
-# interval = '5'
-# category = 'linear'
-# leverage = 5
-# symbols= get_tickers()
-# max_pos = 50
-# df = get_klines(symbol, interval, category)
-# last_row = df.iloc[-1]
-
-# current_candle =last_row['Close']
-
-# set_mode(symbol, category, leverage)
-# sleep(2)
-# slcoef = 1.9
-# TPSLRatio = 1.7
-# slatr =slcoef * df['ATR'].iloc[-1]
-# sl1 = current_candle - slatr
-# tp1 = current_candle + slatr * TPSLRatio
-# print(tp1, sl1)
-# #place_order(symbol, 1, mysize, current_candle, stop_loss=sl1, take_profit=tp1, leverage=leverage)

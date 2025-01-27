@@ -32,12 +32,18 @@ def on_message(ws, message):
         total = round(float(liq_info["q"])*float(liq_info["p"]))
 
         total_str = numerize.numerize(total)
-        new_entry = pd.DataFrame([[symbol, side, formatted_time, total]], columns=cols)
+        if side == "BUY":
+            side_desc = "Long position liquidated (BUY)"
+        elif side == "SELL":
+            side_desc = "Short position liquidated (SELL)"
+        else:
+            side_desc = side  
+        new_entry = pd.DataFrame([[symbol, side_desc, formatted_time, total]], columns=cols)
 
 
         if (list_tickers == None or not list_tickers or symbol in list_tickers) and (min_price is None or total>=min_price):
             liq_data = pd.concat([liq_data, new_entry], ignore_index=True)
-            print(f"{symbol.ljust(symbol_width)} {side.ljust(side_width)} {str(formatted_time).ljust(time_width)} {str(total_str).ljust(total_width)}")
+            print(f"{symbol.ljust(symbol_width)} {side_desc.ljust(side_width)} {str(formatted_time).ljust(time_width)} {str(total_str).ljust(total_width)}")
      
 
 def on_error(ws, error):
@@ -48,8 +54,8 @@ def on_close(ws):
 
 def on_open(ws):
     print("Connected")
-    print("If a ticker has the side BUY, that means the price went up too much and liquidated a short position")
-    print("If a ticker has the side SELL, that means the price went down too much and liquidated a long position")
+    print("If a ticker has the side BUY, that means the price went down too much and liquidated a long position")
+    print("If a ticker has the side SHORT, that means the price went up too much and liquidated a short position")
     print(f"{'Symbol'.ljust(symbol_width)} {'Side'.ljust(side_width)} {'Time'.ljust(time_width)} {'Total'.ljust(total_width)}")
 
 
@@ -60,7 +66,7 @@ list_tickers = None
 min_price = 1000
 
 symbol_width = 15
-side_width = 6
+side_width = 38
 time_width = 20
 total_width = 12
 

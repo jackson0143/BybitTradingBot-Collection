@@ -37,7 +37,7 @@ def SIGNAL(df):
     return df['TOTAL_SIGNAL']
 #class Bollinger_EMA2(Strategy):
 class Bollinger_EMA2(TrailingStrategy):
-    mysize = 0.05
+    mysize = 0.1
     slcoef = 1.9
     TPSLRatio = 1.7
 
@@ -45,7 +45,10 @@ class Bollinger_EMA2(TrailingStrategy):
     #TPSLRatio = 1.7
     #rsi_length = 16
     #backcandles= 6
- 
+
+
+
+    mysize = 0.1
     stop_range =1.7
     def init(self):
         super().init()
@@ -78,25 +81,52 @@ class Bollinger_EMA2(TrailingStrategy):
 
 def optimize_plot_BolEMA2(bt, showhm = False):
     
-        #overbought = range(50,95,5),
-        #oversold = range(5,50,5),
-        #rsi_window = range(2,20,2),
+    if showhm:
+        stats, heatmap = bt.optimize(
+        stop_range= [i / 10 for i in range(1, 31)],
+        mysize = [i/100 for i in range(5,60,5)],
+        maximize='Return [%]',
+            return_heatmap=True
+        )
 
-        #fast_ema_len=range(1,15,1),
-        #slow_ema_len=range(15,35,1),
+        # Plot the heatmap
+        heatmap_df = heatmap.unstack()
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(heatmap_df, annot=True, cmap='viridis', fmt='.0f')
+        plt.show()
+
+        return stats  # Return stats for further processing
+
+    else:
+        # Only stats are returned when return_heatmap=False
+        stats = bt.optimize(
+        stop_range= [i / 10 for i in range(1, 41)],
+        mysize = [i/100 for i in range(5,60,5)],
+        maximize='Sharpe Ratio',
+            return_heatmap=False
+        )
+
+        return stats  # Return stats for further processing
+
+
+
+
+    '''
+
     stats, heatmap = bt.optimize(
         #slcoef=[i / 10 for i in range(10, 21)],  # Range: 1.0 to 2.0
         #TPSLRatio=[i / 10 for i in range(10, 21)],  # Range: 1.0 to 2.0
         #slcoef=[i / 10 for i in range(15, 31)],  # Range: 1.5 to 3.0
-        TPSLRatio=[i / 10 for i in range(15, 31)],  # Range: 1.5 to 3.0
+        #TPSLRatio=[i / 10 for i in range(15, 31)],  # Range: 1.5 to 3.0
         #fast_ema_len=range(1,15,1),
         #slow_ema_len=range(15,35,1),
         stop_range= [i / 10 for i in range(1, 31)],
-
-        maximize='Return [%]',
+        mysize = [i/100 for i in range(5,100,5)],
+        maximize='Sharpe Ratio',
         #maximize = 'Max. Drawdown [%]',
         return_heatmap=True
     )
+    '''
 
     
     print(stats['_strategy'])
