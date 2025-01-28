@@ -9,15 +9,18 @@ import pytz
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from time import sleep
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from binance.client import Client
 load_dotenv()
 
 
-from Strategies.Bollinger_EMA import Bollinger_EMA, optimize_plot_BolEMA
-from Strategies.Bollinger_EMA_2 import Bollinger_EMA2, ema_signal, total_signal, optimize_plot_BolEMA2
-from Strategies.rsi_crossover import RSI_crossover, optimize_plot_rsi_cross
-from Strategies.test import TestStrategy, optimize_plot_test
+from Strategies.Bollinger_EMA import Bollinger_EMA
+from Strategies.Bollinger_EMA_2 import Bollinger_EMA2
+from Strategies.rsi_crossover import RSI_crossover
+from Strategies.test import TestStrategy
+from Strategies.MACD_RSI_BOL import MACD_RSI_BB_Trailing
 
 session = HTTP(
     testnet=False,
@@ -27,25 +30,6 @@ session = HTTP(
 )
 
 
-'''
-def fetch_market_data(symbol, interval, category, limit=200, start = None):
-
-    data = session.get_kline(symbol=symbol, interval=interval, category = category, limit=limit, start = start
-    )
-    df = pd.DataFrame(data['result']['list'])
-    df.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Turnover']
-
-    df['Date'] = pd.to_datetime(pd.to_numeric(df['Date']), unit='ms')
-    df.set_index('Date', inplace=True)
-    melbourne_tz = pytz.timezone('Australia/Melbourne')
-    df.index = df.index.tz_localize('UTC').tz_convert(melbourne_tz)
-    df.index = df.index.tz_localize(None)
-
-    df = df[::-1]
-
-    df = df.astype(float)
-    return df
-'''
 
 
 def plot_graph(df_main):
@@ -129,9 +113,9 @@ def mass_run_symbols(symbols, interval, category, starting_date,  strategy_call)
             df = fetch_market_data_binance(symbol, interval, starting_date)
             
             # Call the backtest function for the current symbol
-            stats = strategy_call(symbol, interval, category, df)
+            bt = strategy_call(symbol, interval, category, df)
         
-
+            stats = bt.run()
             # Extract the necessary metrics (e.g., return, Sharpe ratio, etc.)
             final_return = stats['Equity Final [$]']
             total_return = stats['Return [%]']
@@ -169,15 +153,13 @@ def mass_run_symbols(symbols, interval, category, starting_date,  strategy_call)
 #######################
 
 def run_bt_bolEMA(symbol, interval, category, df):
-
     symbol = symbol
     interval = interval
     category = category
 
-    bt = Backtest(df, Bollinger_EMA, cash=100000, commission=0.0006, margin = 1/40, hedging=True)
-    stats = bt.run()
-   
-    return(stats)
+    bt = Backtest(df, Bollinger_EMA, cash=100000, commission=0.0006, margin = 1/20, hedging=True)
+    
+    return bt
 
 def run_bt_bolEMA2(symbol, interval, category, df_old):
     df=df_old.copy()
@@ -185,33 +167,27 @@ def run_bt_bolEMA2(symbol, interval, category, df_old):
     interval = interval
     category = category
 
-    backcandles= 6
-    df['Fast_EMA'] = ta.ema(df['Close'], length=7)
-    df['Slow_EMA'] = ta.ema(df['Close'], length=15)
-    df['RSI'] = ta.rsi(df['Close'], length=14)
-    df['ATR'] = ta.atr(df['High'], df['Low'],df['Close'], length=7)
-    bbands = ta.bbands(df['Close'], length = 20, std = 2.5 )
-    df = df.join(bbands)
-    df['EMA_SIGNAL'] = [ema_signal(df, i,backcandles) if i >= backcandles - 1 else 0 for i in range(len(df))]
-    df['TOTAL_SIGNAL'] = [total_signal(df, i,backcandles) if i >= backcandles-1 else 0 for i in range(len(df))]
-
     bt = Backtest(df, Bollinger_EMA2, cash=100000, commission=0.0006, margin = 1/20, hedging=True)
-    stats = bt.run()
-    #stats = optimize_plot_BolEMA2(bt, True)
-    #print(f"Results for {symbol} with params {stats['_strategy']}:")
-    #print(stats)    
+    '''
+   
+    print(stats)    
 
-    # print(df[df['TOTAL_SIGNAL']!= 0].head(20))
-    # print(stats['_trades'])
+    print(df[df['TOTAL_SIGNAL']!= 0].head(20))
+    print(stats['_trades'])
 
-    #plot_graph(df)
-    #sleep(5)
+    plot_graph(df)
+    sleep(5)
 
-    #bt.plot()
+    bt.plot()
     '''
     '''
-    
-    return stats
+    '''
+
+
+    # Print rows where TOTAL_SIGNAL != 0
+    #print(updated_df[updated_df['TOTAL_SIGNAL'] != 0].head(20))
+
+    return bt
 
 def run_bt_rsi_crossover(symbol, interval, category, df):
 
@@ -220,35 +196,88 @@ def run_bt_rsi_crossover(symbol, interval, category, df):
     category = category
     
     bt = Backtest(df, RSI_crossover, cash=100000, commission=0.0006, margin = 1/20, hedging=True)
-    stats = bt.run()
-    #optimize_plot_rsi_cross(bt, True)
-    return stats
+    return bt
 
 def run_test_strategy(symbol, interval, category, df):
     symbol = symbol
     interval = interval
     category = category
     bt = Backtest(df, TestStrategy, cash=100000, commission=0.0006, margin = 1/20)
-    #stats = optimize_plot_test(bt, True)
-    stats = bt.run()
-    #print(f"Results for {symbol} with params {stats['_strategy']}:")
-    #print(stats)
-    #bt.plot()
-    return stats
 
+  
+
+    return bt
+
+def run_bt_MACDRSIBOL(symbol, interval, category, df):
+    symbol = symbol
+    interval = interval
+    category = category
+    bt = Backtest(df, MACD_RSI_BB_Trailing, cash=1000000, commission=0.0006, margin = 1/5, hedging = True)
+
+    return bt
+def optimize_strategy(backtest, params, maximize, show_heatmap=False):
+    
+    if show_heatmap:
+        stats, heatmap = backtest.optimize(
+            **params,
+            maximize=maximize,
+            return_heatmap=True
+        )
+
+        # Create heatmap
+        heatmap_df = heatmap.unstack()
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(heatmap_df, annot=True, cmap='viridis', fmt='.2f')
+        plt.title(f"Optimization Heatmap for {maximize}")
+        #plt.xlabel("Parameter 1")
+        #plt.ylabel("Parameter 2")
+        plt.show()
+        print(f"Backtest Results for {stats['_strategy']} ")
+        return stats
+    else:
+        # Optimize without heatmap
+        stats = backtest.optimize(
+            **params,
+            maximize=maximize,
+            return_heatmap=False
+        )
+        print(f"Backtest Results for {stats['_strategy']} ")
+        return stats
+    
 if __name__ == "__main__":
 
-    symbol='BTCUSDT'
+
+    symbol='SOLUSDT'
     interval = Client.KLINE_INTERVAL_5MINUTE
     category = 'linear'
-    start_date = '20 January 2025'
+    start_date = '1 january 2025'
     df = fetch_market_data_binance(symbol,interval, start_date)
-    #,  'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT
-    symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'RUNEUSDT', 'WIFUSDT', 'AVAXUSDT']
-    results_df = mass_run_symbols(symbols, interval, category, start_date, run_bt_bolEMA2)
-    #results_df = mass_run_symbols(symbols, interval, category, start_date, run_bt_bolEMA2)
-    #run_bt_bolEMA(symbol, interval, category, df)
-    #run_bt_bolEMA2(symbol, interval, category, df)
+   
+    symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT',  'RUNEUSDT', 'AVAXUSDT', 'POPCATUSDT', 'ONDOUSDT', 'PNUTUSDT', 'MEUSDT', 'SWARMSUSDT']
+
+    bt = run_bt_bolEMA(symbol, interval, category, df)
+   
+    params = {
+        #'rsi_period': range(7, 25, 2),
+        #'macd_fast': range(5, 15, 1),
+        #'macd_slow': range(15, 30, 2),
+        'fast_ema_len': range(1,10,1),
+        'slow_ema_len':range(10,20,1),
+        #'macd_signal':  range(5, 10, 1),
+        #'mysize': [i / 100 for i in range(5, 100,5)],
+        #'stop_range':[i / 10 for i in range(11, 51,2)]
+        #'bb_period': range(10, 30, 5),
+        #'bb_std': [i / 10 for i in range(15, 31)],
+    }
+    maximize = 'Return [%]'
+    stats = optimize_strategy(bt, params, maximize, True )
+    #stats = bt.run()
+    bt.plot()
+    print(stats)
+
+
+    #results_df = mass_run_symbols(symbols, interval, category, start_date,run_bt_MACDRSIBOL)
+
     #run_test_strategy(symbol, interval, category, df)
     # symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'HIVEUSDT']
     # for symbol in symbols:

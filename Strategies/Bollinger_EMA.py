@@ -1,14 +1,10 @@
-
 from backtesting.test import GOOG
 import pandas as pd
 import pandas_ta as ta
 from backtesting import Backtest, Strategy
-import seaborn as sns
-import matplotlib.pyplot as plt
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from datetime import datetime
+
 from backtesting.lib import crossover, TrailingStrategy 
+
 
 import numpy as np
 
@@ -102,44 +98,4 @@ class Bollinger_EMA(TrailingStrategy):
             self.sell( size = self.mysize)
 
           
-
-
-def optimize_plot_BolEMA(bt, showhm = False):
-    stats, heatmap= bt.optimize(
-        #overbought = range(50,95,5),
-        #oversold = range(5,50,5),
-        #rsi_window = range(2,20,2),
-        #slcoef = [i/10 for i in range(10,21)],
-        #TPSLRatio = [i/10 for i in range(10,21)],
-        #fast_ema_len=range(1,15,1),
-        #slow_ema_len=range(15,35,1),
-        #mysize = [i/100 for i in range(5,100,5)] ,
-        # sl_ratio = [i/10 for i in range(1,11)],
-        # tp_ratio = [i/10 for i in range(1,11)],
-        #backcandles= range(1, 15, 1),
-        #bb_len = range(2,30,2),
-        #slow_ema_len = range(15, 35, 1),
-        stop_range= [i / 10 for i in range(1, 31)],
-        mysize = [i/100 for i in range(5,100,5)],
-        #std = [i/10 for i in range(21,41)],
-        maximize = 'Sharpe Ratio',
-        return_heatmap=True
-    )
-   
-
-
-    print(stats['_strategy'])
-    print(stats)
-    #bt.plot()
-    if showhm:
-        heatmap_df = heatmap.unstack()
-        plt.figure(figsize = (10,8))
-        sns.heatmap(heatmap_df, annot = True, cmap = 'viridis', fmt='.0f')
-        plt.show()
-    
-
-# stats = bt.run()
-# print(stats)
-# bt.plot()
-
 

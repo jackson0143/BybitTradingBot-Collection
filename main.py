@@ -127,9 +127,9 @@ def set_mode(symbol, category, leverage) :
         sellLeverage=str(leverage)
 )       
 
-        print(res)
+        print('Successfully set leverage.')
     except Exception as err:
-        print(err)
+        print('Did not set leverage')
 def set_position_mode(symbol, category, mode):
     try:
         res = session.switch_position_mode(
@@ -137,9 +137,9 @@ def set_position_mode(symbol, category, mode):
             symbol = symbol,
             mode = mode
         )
-        print(res)
+        print('Switched to Hedge mode')
     except Exception as err:
-        print(err)
+        print('Already hedge mode')
 def get_precisions(symbol):
     try:
         resp = session.get_instruments_info(
@@ -157,7 +157,10 @@ def get_precisions(symbol):
         else:
             qty = 0
 
-        return price, qty
+
+        max_qty = resp['lotSizeFilter']['maxMktOrderQty']
+
+        return price, qty, max_qty
     except Exception as err:
         print(err)
 
@@ -166,6 +169,7 @@ def get_precisions(symbol):
 def place_order(symbol, side, mysize,price, stop_loss=None, take_profit=None, leverage=10):
     price_precision = get_precisions(symbol)[0]
     qty_precision = get_precisions(symbol)[1]
+    #max_qty = get_precisions(symbol)[2]
     total_bal = get_account_balance('USDT')
     balance = total_bal[0]
 
@@ -176,7 +180,9 @@ def place_order(symbol, side, mysize,price, stop_loss=None, take_profit=None, le
 
     
     qty_before_lev = (balance*mysize)/float(mark_price)
+
     qty_final = round(qty_before_lev*leverage,qty_precision)
+   
     if side == 1:
         try:
             session.place_order(
@@ -223,8 +229,11 @@ def ema_signal(df, current_candle, backcandles ):
     start = max(0, current_candle - backcandles)
     df_new = df.iloc[start:current_candle ]
 
+    #if fast above slow, uptrend
     if all(df_new['Fast_EMA'] > df_new['Slow_EMA']):
         return 1  # Uptrend
+    
+    #if slow above fast, downtrend
     elif all(df_new['Fast_EMA'] < df_new['Slow_EMA']):
         return -1  # Downtrend
     else:
@@ -245,7 +254,7 @@ def total_signal(df, current_candle, backcandles):
         return -1
     return 0
 def place_order_trailstop(symbol, side, mysize,price,trailing_stop_distance, leverage=10):
-    price_precision, qty_precision = get_precisions(symbol)
+    price_precision, qty_precision, max_qty = get_precisions(symbol)
     total_bal = get_account_balance('USDT')
     balance = total_bal[0]
 
@@ -256,13 +265,15 @@ def place_order_trailstop(symbol, side, mysize,price,trailing_stop_distance, lev
 
     trailing_stop_distance_final = round(trailing_stop_distance,price_precision)
     qty_before_lev = (balance*mysize)/float(mark_price)
-    qty_final = round(qty_before_lev*leverage,qty_precision)
+    qty_final = min(round(qty_before_lev*leverage,qty_precision), float(max_qty))
+
+    
     if side == 1:
         try:
             session.place_order(
                 category = "linear",
                 symbol = symbol,
-                side = 'Sell',
+                side = 'Buy',
                 orderType = "Market",
                 qty = str(qty_final),
                 #price=str(price),
@@ -295,7 +306,7 @@ def place_order_trailstop(symbol, side, mysize,price,trailing_stop_distance, lev
                 positionIdx=2
 
             )
-            print('placed order')
+  
             print(f"Placed a SHORT order at ${mark_price}")
             res = session.set_trading_stop(
                 category="linear",
@@ -332,6 +343,7 @@ def run():
     n_atr = 1.7
     max_pos = 19
     allowed_positions = ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', '1000PEPEUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT', 'SHIB1000USDT', 'RUNEUSDT', 'AVAXUSDT', 'POPCATUSDT', 'ONDOUSDT', 'PNUTUSDT', 'MEUSDT', 'SWARMSUSDT']
+   
     print("Starting the program...")
     
     while True:
@@ -362,35 +374,42 @@ def run():
                 print(f"Failed to fetch data for {elem}. Skipping...")
                 continue
             last_row = df.iloc[-1]
-
-           
+         
             current_candle =last_row['Close']
             signal = total_signal(df, len(df)-1, backcandles)
 
-            
+           
             trailing_stop_distance = n_atr* df['ATR'].iloc[-1]# Trailing stop in absolute terms
            
             slatr =slcoef * df['ATR'].iloc[-1]
             print( f"{elem} {signal} || Date: {df.index[-1]} Open: {last_row['Open']} High: {last_row['High']}  Low: {last_row['Low']} Close: {last_row['Close']} ")
 
-                
+            
             if signal==1 and len(pos)<max_pos:
-                set_mode(elem, category, leverage)
-                set_position_mode(elem, category, 3)
-                sleep(2)
-                sl1 = current_candle - slatr
-                tp1 = current_candle + slatr * TPSLRatio
-                place_order_trailstop(elem, signal, mysize, current_candle,  leverage=leverage, trailing_stop_distance=trailing_stop_distance)
-                
-                
+                print(f"Attempting to place LONG order for {elem}. Signal: {signal}")
+                try:
+                    set_position_mode(elem, category, 3)
+                    set_mode(elem, category, leverage)
+
+                    sleep(2)
+                    sl1 = current_candle - slatr
+                    tp1 = current_candle + slatr * TPSLRatio
+                    place_order_trailstop(elem, signal, mysize, current_candle,  leverage=leverage, trailing_stop_distance=trailing_stop_distance)
+                    
+                except Exception as e:
+                    print(f"Failed to place LONG order for {elem}. Error: {e}")
             elif signal==-1 and len(pos)<max_pos:      
-                set_mode(elem, category, leverage)
-                sleep(2)
-                #Short position
-                sl1 = current_candle + slatr
-                tp1 = current_candle - slatr * TPSLRatio
-                place_order_trailstop(elem, signal, mysize, current_candle, leverage=leverage, trailing_stop_distance=trailing_stop_distance)
-      
+                print(f"Attempting to place SHORT order for {elem}. Signal: {signal}")
+                try:
+                    set_position_mode(elem, category, 3)
+                    set_mode(elem, category, leverage)
+                    sleep(2)
+                    #Short position
+                    sl1 = current_candle + slatr
+                    tp1 = current_candle - slatr * TPSLRatio
+                    place_order_trailstop(elem, signal, mysize, current_candle, leverage=leverage, trailing_stop_distance=trailing_stop_distance)
+                except Exception as e:
+                    print(f"Failed to place SHORT order for {elem}. Error: {e}")        
             '''
 
             #long position

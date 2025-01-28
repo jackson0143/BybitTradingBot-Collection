@@ -57,32 +57,3 @@ class TestStrategy(TrailingStrategy):
             if self.position.is_long:
                 self.position.close()
                 self.sell(size=self.size)
-def optimize_plot_test(bt, showhm = False):
-    
-    if showhm:
-        stats, heatmap = bt.optimize(
-            bb_length = range(2,100,1),
-            #stop_range=[i / 10 for i in range(4, 51)],
-            bb_std=[i / 10 for i in range(40, 61, 5)],
-            maximize='Sharpe Ratio',
-            return_heatmap=True
-        )
-
-        # Plot the heatmap
-        heatmap_df = heatmap.unstack()
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(heatmap_df, annot=True, cmap='viridis', fmt='.0f')
-        plt.show()
-
-        return stats  # Return stats for further processing
-
-    else:
-        # Only stats are returned when return_heatmap=False
-        stats = bt.optimize(
-            stop_range=[i / 10 for i in range(4, 51)],
-            bb_std=[i / 10 for i in range(40, 61, 5)],
-            maximize='Sharpe Ratio',
-            return_heatmap=False
-        )
-
-        return stats  # Return stats for further processing

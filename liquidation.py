@@ -61,9 +61,9 @@ def on_open(ws):
 
 url = "wss://fstream.binance.com/ws/!forceOrder@arr"
 
-#list_tickers = ['BTCUSDT', 'ETHUSDT', 'SUIUSDT', 'DOGEUSDT', 'MELANIAUSDT'] 
+#list_tickers = ['BTCUSDT', 'ETHUSDT','SOLUSDT', 'TRUMPUSDT' 'SUIUSDT', 'DOGEUSDT',] 
 list_tickers = None
-min_price = 1000
+min_price = 5000
 
 symbol_width = 15
 side_width = 38

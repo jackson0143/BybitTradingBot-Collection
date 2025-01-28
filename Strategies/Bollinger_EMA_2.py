@@ -1,11 +1,10 @@
-
 from backtesting.test import GOOG
 import pandas as pd
 import pandas_ta as ta
 from backtesting import Backtest, Strategy
-import seaborn as sns
-import matplotlib.pyplot as plt
-from backtesting.lib import crossover, TrailingStrategy
+
+from backtesting.lib import crossover, TrailingStrategy 
+
 
 
 def ema_signal(df, current_candle, backcandles ):
@@ -54,7 +53,7 @@ class Bollinger_EMA2(TrailingStrategy):
         super().init()
         super().set_trailing_sl(self.stop_range)
         self.signal1 = self.I(SIGNAL, self.data.df)
-
+        
 
     def next(self):
         super().next()
@@ -79,75 +78,6 @@ class Bollinger_EMA2(TrailingStrategy):
             #self.sell(sl=sl1, tp=tp1, size = self.mysize)
             self.sell( size = self.mysize)
 
-def optimize_plot_BolEMA2(bt, showhm = False):
-    
-    if showhm:
-        stats, heatmap = bt.optimize(
-        stop_range= [i / 10 for i in range(1, 31)],
-        mysize = [i/100 for i in range(5,60,5)],
-        maximize='Return [%]',
-            return_heatmap=True
-        )
-
-        # Plot the heatmap
-        heatmap_df = heatmap.unstack()
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(heatmap_df, annot=True, cmap='viridis', fmt='.0f')
-        plt.show()
-
-        return stats  # Return stats for further processing
-
-    else:
-        # Only stats are returned when return_heatmap=False
-        stats = bt.optimize(
-        stop_range= [i / 10 for i in range(1, 41)],
-        mysize = [i/100 for i in range(5,60,5)],
-        maximize='Sharpe Ratio',
-            return_heatmap=False
-        )
-
-        return stats  # Return stats for further processing
 
 
 
-
-    '''
-
-    stats, heatmap = bt.optimize(
-        #slcoef=[i / 10 for i in range(10, 21)],  # Range: 1.0 to 2.0
-        #TPSLRatio=[i / 10 for i in range(10, 21)],  # Range: 1.0 to 2.0
-        #slcoef=[i / 10 for i in range(15, 31)],  # Range: 1.5 to 3.0
-        #TPSLRatio=[i / 10 for i in range(15, 31)],  # Range: 1.5 to 3.0
-        #fast_ema_len=range(1,15,1),
-        #slow_ema_len=range(15,35,1),
-        stop_range= [i / 10 for i in range(1, 31)],
-        mysize = [i/100 for i in range(5,100,5)],
-        maximize='Sharpe Ratio',
-        #maximize = 'Max. Drawdown [%]',
-        return_heatmap=True
-    )
-    '''
-
-    
-    print(stats['_strategy'])
-    print(stats)
-    #bt.plot()
-    if showhm:
-        heatmap_df = heatmap.unstack()
-        plt.figure(figsize = (10,8))
-        sns.heatmap(heatmap_df, annot = True, cmap = 'viridis', fmt='.0f')
-        plt.show()
-    return stats
-# df = GOOG
-# backcandles = 6
-# df['Fast_EMA'] = ta.ema(df['Close'], length=30)
-# df['Slow_EMA'] = ta.ema(df['Close'], length=50)
-# df['ATR'] = ta.atr(df['High'], df['Low'],df['Close'], length=7)
-# bbands = ta.bbands(df['Close'], length = 20, std = 2)
-# df = df.join(bbands)
-# df['EMA_SIGNAL'] = [ema_signal(df, i,backcandles) if i >= backcandles - 1 else 0 for i in range(len(df))]
-# df['TOTAL_SIGNAL'] = [total_signal(df, i,backcandles) if i >= backcandles-1 else 0 for i in range(len(df))]
-
-
-# bt = Backtest(df, Bollinger_EMA2, cash=10000, commission=0.0006, margin = 1/5)
-# print(bt.run())
