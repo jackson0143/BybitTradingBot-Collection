@@ -21,7 +21,7 @@ from Strategies.Bollinger_EMA_2 import Bollinger_EMA2
 from Strategies.rsi_crossover import RSI_crossover
 from Strategies.test import TestStrategy
 from Strategies.MACD_RSI_BOL import MACD_RSI_BB_Trailing
-
+from Strategies.Bollinger_RSIonly import Bollinger_RSIonly
 session = HTTP(
     testnet=False,
     demo=True,
@@ -148,8 +148,55 @@ def mass_run_symbols(symbols, interval, category, starting_date,  strategy_call)
     total_return_sum = results_df['Total Return (%)'].sum()
     print(f"\nSum of Total Return (%): {total_return_sum}")
     return results_df
+'''
+def mass_optimize_symbols(symbols, interval, category, starting_date, strategy_call, param, optimization_rounds=50):
+    best_params = None
+    best_avg_sharpe = -float('inf')  # Track the best average Sharpe ratio
+    all_results = []
 
+    print("-" * 40 + "\nRunning optimization for Strategy across symbols:\n")
 
+    # Loop through symbols and run optimization using Backtest.optimize()
+    for symbol in symbols:
+        print(f"\nOptimizing for {symbol}...\n")
+        
+        try:
+       
+            df = fetch_market_data_binance(symbol, interval, starting_date)
+
+       
+            bt = strategy_call(symbol, interval, category, df)
+            stats = optimize_strategy(bt, params, maximize, show_heatmap=False)
+
+            # Collect the optimized parameter set and its Sharpe ratio
+    
+            sharpe_ratio = stats['Sharpe Ratio']
+
+            print(f"Optimized Parameters for {symbol}: {optimized_params} with Sharpe Ratio: {sharpe_ratio}")
+
+            all_results.append({
+                'Symbol': symbol,
+                'Optimized Parameters': optimized_params,
+                'Sharpe Ratio': sharpe_ratio
+            })
+
+            # Update the best overall params if this Sharpe ratio is better
+            if sharpe_ratio > best_avg_sharpe:
+                best_avg_sharpe = sharpe_ratio
+                best_params = optimized_params
+
+        except Exception as e:
+            print(f"Error optimizing for {symbol}: {e}")
+            all_results.append({
+                'Symbol': symbol,
+                'Error': str(e)
+            })
+
+        sleep(0.5)  # Optional: To avoid rate limits
+
+    print(f"\nBest Overall Parameters Across Symbols: {best_params} with Average Sharpe Ratio: {best_avg_sharpe:.2f}")
+    return best_params, all_results
+'''
 #######################
 
 def run_bt_bolEMA(symbol, interval, category, df):
@@ -196,6 +243,15 @@ def run_bt_rsi_crossover(symbol, interval, category, df):
     category = category
     
     bt = Backtest(df, RSI_crossover, cash=100000, commission=0.0006, margin = 1/20, hedging=True)
+    return bt
+
+def run_bt_bol_RSIonly(symbol, interval, category, df):
+
+    symbol = symbol
+    interval = interval
+    category = category
+    
+    bt = Backtest(df, Bollinger_RSIonly, cash=100000, commission=0.0006, margin = 1/10)
     return bt
 
 def run_test_strategy(symbol, interval, category, df):
@@ -250,7 +306,7 @@ if __name__ == "__main__":
     symbol='SOLUSDT'
     interval = Client.KLINE_INTERVAL_5MINUTE
     category = 'linear'
-    start_date = '1 january 2025'
+    start_date = '1 november 2024'
     df = fetch_market_data_binance(symbol,interval, start_date)
    
     symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT',  'RUNEUSDT', 'AVAXUSDT', 'POPCATUSDT', 'ONDOUSDT', 'PNUTUSDT', 'MEUSDT', 'SWARMSUSDT']
@@ -261,23 +317,25 @@ if __name__ == "__main__":
         #'rsi_period': range(7, 25, 2),
         #'macd_fast': range(5, 15, 1),
         #'macd_slow': range(15, 30, 2),
-        'fast_ema_len': range(1,10,1),
-        'slow_ema_len':range(10,20,1),
+        #'fast_ema_len': range(1,10,1),
+        #'slow_ema_len':range(10,20,1),
         #'macd_signal':  range(5, 10, 1),
         #'mysize': [i / 100 for i in range(5, 100,5)],
-        #'stop_range':[i / 10 for i in range(11, 51,2)]
-        #'bb_period': range(10, 30, 5),
-        #'bb_std': [i / 10 for i in range(15, 31)],
+        'stop_range':[i / 10 for i in range(11, 51,2)],
+        'bb_len': range(2, 40, 2),
+        'bb_std': [i / 10 for i in range(15, 31)],
+        #'slcoef':[i/10 for i in range(10, 41)],
+        #'TPcoef': [i/10 for i in range(10, 41)]
     }
-    maximize = 'Return [%]'
-    stats = optimize_strategy(bt, params, maximize, True )
-    #stats = bt.run()
-    bt.plot()
-    print(stats)
+    maximize = 'Sharpe Ratio'
+    #stats = optimize_strategy(bt, params, maximize, True )
+    # stats = bt.run()
+    # bt.plot()
+    # print(stats)
 
 
-    #results_df = mass_run_symbols(symbols, interval, category, start_date,run_bt_MACDRSIBOL)
-
+    results_df = mass_run_symbols(symbols, interval, category, start_date,run_bt_bolEMA)
+    print(results_df)
     #run_test_strategy(symbol, interval, category, df)
     # symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'HIVEUSDT']
     # for symbol in symbols:

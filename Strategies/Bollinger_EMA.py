@@ -52,7 +52,7 @@ class Bollinger_EMA(TrailingStrategy):
     slow_ema_len=15
     atr_val = 7
     bb_len = 20
-    std = 2.5
+    bb_std = 2.5
 
 
     backcandles = 6
@@ -66,9 +66,10 @@ class Bollinger_EMA(TrailingStrategy):
         self.fast_ema = self.I(ta.ema, pd.Series(self.data.Close), self.fast_ema_len)
         #self.rsi = self.I(ta.rsi, pd.Series(self.data.Close), self.rsi_window)
         self.atr = self.I(ta.atr,pd.Series(self.data.High), pd.Series(self.data.Low), pd.Series(self.data.Close), self.atr_val )
-        bbands = self.I(ta.bbands, pd.Series(self.data.Close),self.bb_len, self.std )
-        self.bbl = bbands[0]  
-        self.bbu = bbands[2]  
+        self.bbands = self.I(ta.bbands, pd.Series(self.data.Close),self.bb_len, self.bb_std )
+ 
+        self.bbl = self.bbands[0]  
+        self.bbu = self.bbands[2]  
         self.signal1 = self.I(total_signal, self.fast_ema, self.slow_ema, self.data.Close, self.bbl, self.bbu, self.backcandles)
 
       
