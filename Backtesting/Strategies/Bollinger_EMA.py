@@ -43,21 +43,15 @@ class Bollinger_EMA(TrailingStrategy):
     slcoef = 1.9
     TPSLRatio = 1.7
 
-
-
-
-
     #These are indicator params dont change
     fast_ema_len=7
     slow_ema_len=15
     atr_val = 7
     bb_len = 20
     bb_std = 2.5
-
-
     backcandles = 6
 
-    stop_range =1.7
+    stop_range =1.9
 
     def init(self):
         super().init()
@@ -72,7 +66,6 @@ class Bollinger_EMA(TrailingStrategy):
         self.bbu = self.bbands[2]  
         self.signal1 = self.I(total_signal, self.fast_ema, self.slow_ema, self.data.Close, self.bbl, self.bbu, self.backcandles)
 
-      
 
 
     def next(self):

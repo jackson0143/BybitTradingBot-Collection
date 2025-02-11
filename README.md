@@ -1,2 +1,2 @@
 # Bybit-Trading-bots
-Crypto trading bot using Bybit that utilises various technical analysis techniques to perform various trades such as scalping and possibly grids.
+A collection of utilities and Trading Bots/Strategies to perform trades on the Bybit platform. Includes various backtesting and bot setups 

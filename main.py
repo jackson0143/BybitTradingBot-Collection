@@ -16,7 +16,7 @@ load_dotenv()
 
 
 class TradingBot:
-    def __init__(self, api_key, api_secret, strategy, allowed_positions,mysize,indicators=None, leverage =10 ,interval='5', category='linear'):
+    def __init__(self, api_key, api_secret, strategy, allowed_positions,mysize,stop_atr, indicators=None, leverage =10 ,interval='5', category='linear'):
 
         """
         Initialize the trading bot with key configurations and session setup.
@@ -36,6 +36,7 @@ class TradingBot:
         self.category = category    #which category to trade
         self.mysize = mysize        #each trade position size
         self.indicators = indicators #a list of params for the indicator (in case for each strategy we require different parameters)
+        self.stop_atr = stop_atr
     def get_time(self):
         """
         Fetch current server time
@@ -360,8 +361,8 @@ class TradingBot:
         """
         helper method to setup the modes before placing trade
         """
-        self.set_position_mode(symbol, self.category, 3)
-        self.set_mode(symbol, self.category, self.leverage)
+        self.set_position_mode(symbol, 3)
+        self.set_mode(symbol)
 
 
     def attempt_order(self, symbol,signal, mysize, trailing_stop_distance):
@@ -382,7 +383,7 @@ class TradingBot:
     def run(self):
 
 
-        n_atr = 1.7
+     
     
         print("Starting the program...")
         while True:
@@ -417,7 +418,7 @@ class TradingBot:
                         print(f"Skipping {symbol} - a position in the same direction already exists !")
                         continue  # Skip to the next symbol
 
-                trailing_stop_distance = n_atr* df['ATR'].iloc[-1]# Trailing stop in absolute terms
+                trailing_stop_distance = self.stop_atr* df['ATR'].iloc[-1]# Trailing stop in absolute terms
                 if signal != 0:
                     self.attempt_order(symbol, signal, self.mysize, trailing_stop_distance)
 
@@ -464,7 +465,8 @@ if __name__ == "__main__":
         interval = '5',
         category = 'linear',
         mysize = 0.05,
-        indicators=custom_indicators
+        indicators=custom_indicators,
+        stop_atr = 1.9
     )
   
 

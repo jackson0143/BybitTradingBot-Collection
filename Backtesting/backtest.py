@@ -12,6 +12,8 @@ from time import sleep
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from Strategies.Bollinger_EMA import total_signal
+
 from binance.client import Client
 load_dotenv()
 
@@ -22,6 +24,7 @@ from Strategies.rsi_crossover import RSI_crossover
 from Strategies.test import TestStrategy
 from Strategies.MACD_RSI_BOL import MACD_RSI_BB_Trailing
 from Strategies.Bollinger_RSIonly import Bollinger_RSIonly
+from Strategies.Bollinger_VWAP import Bollinger_VWAP
 session = HTTP(
     testnet=False,
     demo=True,
@@ -30,47 +33,116 @@ session = HTTP(
 )
 
 
+def apply_indicator( df, indicator):
+        """
+        Apply a technical indicator to the DataFrame based on its type and parameters.
+        """
+        indicator_type = indicator['type']
+        params = indicator['params']
+
+        # apply the indicator based on its type dynamically
+        if indicator_type == 'ema':
+            col_name = params.get('col_name', f"EMA_{params['length']}")
+            df[col_name] = ta.ema(df['Close'], length=params['length'])
+        
+        elif indicator_type == 'sma':
+            col_name = params.get('col_name', f"SMA_{params['length']}")
+            df[col_name] = ta.sma(df['Close'], length=params['length'])
+        
+        elif indicator_type == 'atr':
+            df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=params['length'])
+        
+        elif indicator_type == 'bbands':
+            bbands = ta.bbands(df['Close'], length=params['length'], std=params['std'])
+            bbands.columns = ['BB_Lower', 'BB_Middle', 'BB_Upper', 'BB_BandWidth', 'BB_Percent']
+            for col in bbands.columns:
+                df[col] = bbands[col]
+
+        elif indicator_type == 'rsi':
+            df['RSI'] = ta.rsi(df['Close'], length=params['length'])
 
 
-def plot_graph(df_main):
+        elif indicator_type == 'total_signal':
+            # Apply the total_signal function and store the result in the specified column
+            df[params.get('col_name', 'TOTAL_SIGNAL')] = total_signal(
+                fast_ema=df[params['fast_ema']].values,
+                slow_ema=df[params['slow_ema']].values,
+                close=df['Close'].values,
+                bbl=df['BB_Lower'].values,
+                bbu=df['BB_Upper'].values,
+                backcandles=params['backcandles']
+            )
+        else:
+            print(f"Unknown indicator type: {indicator_type}")
+
+def apply_all_indicators(df, indicators):
+    for indicator in indicators:
+        apply_indicator(df, indicator)  # Apply each indicator
+    return df 
+def plot_graph(df_main, indicators):
     df = df_main.copy()
-    df['pointpos'] = [
-    float(row['Low']) - (float(row['High']) - float(row['Low'])) * 0.5 if row['TOTAL_SIGNAL'] == 1 else  # LONG
-    float(row['High']) + (float(row['High']) - float(row['Low'])) * 0.5 if row['TOTAL_SIGNAL'] == -1 else  # SHORT
-    None
-    for _, row in df.iterrows()
-    ]
-    fig = go.Figure(data = go.Candlestick(x=df.index,
-                                      open = df['Open'],
-                                      high = df['High'],
-                                      low = df['Low'],
-                                      close = df['Close']))
-    #fig.update_layout(xaxis_rangeslider_visible=False)
-    fig.add_trace(go.Scatter(x=df.index, y=df['Fast_EMA'], line=dict(color='blue'), name='Fast EMA '))
-    fig.add_trace(go.Scatter(x=df.index, y=df['Slow_EMA'], line=dict(color='red'), name='Slow EMA '))
 
-    fig.add_trace(go.Scatter(x=df.index, y=df['BBU_20_2.5'], line=dict(color='green', width = 1), name='Upper Band'))
-    fig.add_trace(go.Scatter(x=df.index, y=df['BBL_20_2.5'], line=dict(color='orange', width = 1), name='Lower Band'))
+    # Determine entry/exit points based on signals
+    df['pointpos'] = [
+        float(row['Low']) - (float(row['High']) - float(row['Low'])) * 0.5 if 'TOTAL_SIGNAL' in row and row['TOTAL_SIGNAL'] == 1 else  # LONG
+        float(row['High']) + (float(row['High']) - float(row['Low'])) * 0.5 if 'TOTAL_SIGNAL' in row and row['TOTAL_SIGNAL'] == -1 else  # SHORT
+        None
+        for _, row in df.iterrows()
+    ]
+
+
+    # Initialize candlestick chart
+    fig = go.Figure(data=go.Candlestick(x=df.index,
+                                        open=df['Open'],
+                                        high=df['High'],
+                                        low=df['Low'],
+                                        close=df['Close']))
+
+    # Add traces for custom indicators
+    for indicator in indicators:
+        indicator_type = indicator['type']
+        params = indicator['params']
+        if 'length' in params:
+            col_name = params.get('col_name', f"{indicator_type.upper()}_{params['length']}")
+
+        if col_name == 'Fast_EMA':
+            color = 'blue'
+        elif col_name == 'Slow_EMA':
+            color = 'red'
+
+        # Special handling for Bollinger Bands
+        if indicator_type == 'bbands':
+            fig.add_trace(go.Scatter(x=df.index, y=df['BB_Lower'], line=dict(color='orange', width=1), name='BB Lower'))
+            fig.add_trace(go.Scatter(x=df.index, y=df['BB_Upper'], line=dict(color='green', width=1), name='BB Upper'))
+
+
+        if col_name == 'TOTAL_SIGNAL':
+            continue
+        else:
+            if col_name in df.columns:
+                fig.add_trace(go.Scatter(x=df.index, y=df[col_name], line=dict(width=1.5, color=color), name=col_name))
+
+    # Add signal markers
     fig.add_scatter(
-        x=df.index, 
-        y=df['pointpos'], 
-        mode='markers', 
-        marker=dict(size=10, color="MediumPurple", symbol="circle"),  # Increased size and visibility
-        name="Entry"
+        x=df.index,
+        y=df['pointpos'],
+        mode='markers',
+        marker=dict(size=10, color="MediumPurple", symbol="circle"),
+        name=(f"Entry")
     )
 
+    # Final layout configuration
     fig.update_layout(
-        title="Candlestick Chart with Indicators",
+        title="Candlestick Chart with Custom Indicators",
         xaxis_title="Time",
         yaxis_title="Price",
         xaxis_rangeslider_visible=True,
         yaxis=dict(
-            autorange=True,  # Allow y-axis to rescale automatically
-            fixedrange=False  # Allow manual zooming on the y-axis
+            autorange=True,
+            fixedrange=False  
         )
     )
     fig.show()
-
     return fig
 
 def print_stats(results):
@@ -103,30 +175,25 @@ def fetch_market_data_binance(symbol, interval,starting_date):
     df.index = df.index.tz_localize(None)
     return df
 
-def mass_run_symbols(symbols, interval, category, starting_date,  strategy_call):
-    results = []
+def mass_run_symbols(symbols, interval, start_date, strategy_name,cash=100000, commission=0.0006, margin=1/20, hedging=True):
+
     print( "-" * 40 + "\n")
     print(f"Running backtest for Strategy:")
+
+
+    results = []
     for symbol in symbols:
         print(f"Running backtest for {symbol}")
         try:
-            df = fetch_market_data_binance(symbol, interval, starting_date)
-            
-            # Call the backtest function for the current symbol
-            bt = strategy_call(symbol, interval, category, df)
-        
-            stats = bt.run()
-            # Extract the necessary metrics (e.g., return, Sharpe ratio, etc.)
-            final_return = stats['Equity Final [$]']
-            total_return = stats['Return [%]']
-            max_draw = stats['Max. Drawdown [%]']
+            df = fetch_market_data_binance(symbol, interval, start_date)
+            bt, stats = run_single_strategy(df, strategy_name, cash, commission, margin, hedging)
 
             # Append to the results
             results.append({
                 'Symbol': symbol,
-                'Final Equity ($)': final_return,
-                'Total Return (%)': total_return,
-                'Max drawdown': max_draw
+                'Final Equity ($)': stats['Equity Final [$]'],
+                'Total Return (%)': stats['Return [%]'],
+                'Max drawdown': stats['Max. Drawdown [%]']
             })
         except Exception as e:
             print(f"Error running backtest for {symbol}: {e}")
@@ -138,7 +205,7 @@ def mass_run_symbols(symbols, interval, category, starting_date,  strategy_call)
                 'Error': str(e)
             })
         
-        sleep(1)  # Optional: To avoid hitting rate limits
+
 
     # Create a DataFrame from the results
     results_df = pd.DataFrame(results)
@@ -199,78 +266,25 @@ def mass_optimize_symbols(symbols, interval, category, starting_date, strategy_c
 '''
 #######################
 
-def run_bt_bolEMA(symbol, interval, category, df):
-    symbol = symbol
-    interval = interval
-    category = category
+ 
 
-    bt = Backtest(df, Bollinger_EMA, cash=100000, commission=0.0006, margin = 1/20, hedging=True)
+def run_single_strategy(df, strategy_name, cash=100000, commission = 0.0006, margin = 1/20, hedging =True):
+    '''
+    Runs a single strategy and Backtests it
+    '''
     
-    return bt
 
-def run_bt_bolEMA2(symbol, interval, category, df_old):
-    df=df_old.copy()
-    symbol = symbol
-    interval = interval
-    category = category
-
-    bt = Backtest(df, Bollinger_EMA2, cash=100000, commission=0.0006, margin = 1/20, hedging=True)
-    '''
-   
-    print(stats)    
-
-    print(df[df['TOTAL_SIGNAL']!= 0].head(20))
-    print(stats['_trades'])
-
-    plot_graph(df)
-    sleep(5)
-
-    bt.plot()
-    '''
-    '''
-    '''
-
-
-    # Print rows where TOTAL_SIGNAL != 0
-    #print(updated_df[updated_df['TOTAL_SIGNAL'] != 0].head(20))
-
-    return bt
-
-def run_bt_rsi_crossover(symbol, interval, category, df):
-
-    symbol = symbol
-    interval = interval
-    category = category
+    strategy_class = strategies.get(strategy_name)
+    if strategy_class is None:
+        raise ValueError(f"Strategy {strategy_name} not found")
     
-    bt = Backtest(df, RSI_crossover, cash=100000, commission=0.0006, margin = 1/20, hedging=True)
-    return bt
 
-def run_bt_bol_RSIonly(symbol, interval, category, df):
+    bt = Backtest(df, strategy_class, cash = cash, commission=commission, margin = margin, hedging = hedging)
+    stats=bt.run()
 
-    symbol = symbol
-    interval = interval
-    category = category
-    
-    bt = Backtest(df, Bollinger_RSIonly, cash=100000, commission=0.0006, margin = 1/10)
-    return bt
+    #bt.plot()
+    return bt, stats
 
-def run_test_strategy(symbol, interval, category, df):
-    symbol = symbol
-    interval = interval
-    category = category
-    bt = Backtest(df, TestStrategy, cash=100000, commission=0.0006, margin = 1/20)
-
-  
-
-    return bt
-
-def run_bt_MACDRSIBOL(symbol, interval, category, df):
-    symbol = symbol
-    interval = interval
-    category = category
-    bt = Backtest(df, MACD_RSI_BB_Trailing, cash=1000000, commission=0.0006, margin = 1/5, hedging = True)
-
-    return bt
 def optimize_strategy(backtest, params, maximize, show_heatmap=False):
     
     if show_heatmap:
@@ -302,17 +316,37 @@ def optimize_strategy(backtest, params, maximize, show_heatmap=False):
     
 if __name__ == "__main__":
 
-
-    symbol='SOLUSDT'
+    strategies = {
+    'Bollinger_EMA': Bollinger_EMA,
+    'Bollinger_EMA2': Bollinger_EMA2,
+    'RSI_Crossover': RSI_crossover,
+    'TestStrategy': TestStrategy,
+    'MACD_RSI_BB_Trailing': MACD_RSI_BB_Trailing,
+    'Bollinger_VWAP':Bollinger_VWAP,#incomplete
+    'Bollinger_RSIonly': Bollinger_RSIonly
+}
+    symbol='BTCUSDT'
     interval = Client.KLINE_INTERVAL_5MINUTE
-    category = 'linear'
-    start_date = '1 november 2024'
+    #category = 'linear'
+    start_date = '6 january 2025'
     df = fetch_market_data_binance(symbol,interval, start_date)
-   
-    symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT',  'RUNEUSDT', 'AVAXUSDT', 'POPCATUSDT', 'ONDOUSDT', 'PNUTUSDT', 'MEUSDT', 'SWARMSUSDT']
 
-    bt = run_bt_bolEMA(symbol, interval, category, df)
-   
+    symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT',  'RUNEUSDT', 'AVAXUSDT', 'POPCATUSDT', 'ONDOUSDT', 'PNUTUSDT', 'MEUSDT', 'SWARMSUSDT']
+ 
+    custom_indicators = [
+    {'type': 'ema', 'params': {'length': 7, 'col_name': 'Fast_EMA'}},
+    {'type': 'ema', 'params': {'length': 15, 'col_name': 'Slow_EMA'}},
+    {'type': 'rsi', 'params': {'length': 14}},
+    {'type': 'atr', 'params': {'length': 7}},
+    {'type': 'bbands', 'params': {'length': 20, 'std': 2.5}},
+    {'type': 'total_signal', 'params': {
+        'fast_ema': 'Fast_EMA',
+        'slow_ema': 'Slow_EMA',
+        'backcandles': 6,
+        'col_name': 'TOTAL_SIGNAL'
+    }}
+]
+
     params = {
         #'rsi_period': range(7, 25, 2),
         #'macd_fast': range(5, 15, 1),
@@ -320,31 +354,25 @@ if __name__ == "__main__":
         #'fast_ema_len': range(1,10,1),
         #'slow_ema_len':range(10,20,1),
         #'macd_signal':  range(5, 10, 1),
-        #'mysize': [i / 100 for i in range(5, 100,5)],
+        'mysize': [i / 100 for i in range(5, 100,5)],
         'stop_range':[i / 10 for i in range(11, 51,2)],
-        'bb_len': range(2, 40, 2),
-        'bb_std': [i / 10 for i in range(15, 31)],
+        #'bb_len': range(2, 40, 2),
+        #'bb_std': [i / 10 for i in range(15, 31)],
         #'slcoef':[i/10 for i in range(10, 41)],
         #'TPcoef': [i/10 for i in range(10, 41)]
     }
-    maximize = 'Sharpe Ratio'
-    #stats = optimize_strategy(bt, params, maximize, True )
-    # stats = bt.run()
-    # bt.plot()
+
+            
+    df = apply_all_indicators(df, custom_indicators)
+    # sleep(2)
+    # fig = plot_graph(df, custom_indicators)  
+    # sleep(2)
+    # bt, stats = run_single_strategy(df, 'MACD_RSI_BB_Trailing', cash = 1000000, commission=0.0006, margin = 1/20, hedging = True)
     # print(stats)
+    # print(stats._trades)
+    # bt.plot()
 
 
-    results_df = mass_run_symbols(symbols, interval, category, start_date,run_bt_bolEMA)
-    print(results_df)
-    #run_test_strategy(symbol, interval, category, df)
-    # symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'HIVEUSDT']
-    # for symbol in symbols:
-    #     print( "-" * 40 + "\n")
-    #     print(f"Running strategy for {symbol}...")
-        
-    #     # Fetch the market data for the symbol
-    #     df = fetch_market_data_binance(symbol, interval, start_date)
-        
-    #     # Run the test strategy for the symbol
-    #     run_bt_bolEMA2(symbol, interval, category, df)
-        
+    #stats = optimize_strategy(backtest=bt, params=params, maximize='Sharpe Ratio', show_heatmap=True )
+    #bt.plot()
+    stats = mass_run_symbols(symbols, interval, start_date, 'MACD_RSI_BB_Trailing',cash=100000, commission=0.0006, margin=1/20, hedging=True)

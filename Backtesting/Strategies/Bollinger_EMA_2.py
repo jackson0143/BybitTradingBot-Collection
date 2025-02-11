@@ -22,12 +22,12 @@ def ema_signal(df, current_candle, backcandles ):
 def total_signal(df, current_candle, backcandles):
     ema_sig = ema_signal(df, current_candle, backcandles)
     #if EMA signal is uptrend and we close under bollinger band lower, we return a BUY signal
-    if (ema_sig==1 and df['Close'].iloc[current_candle]<=df['BBL_20_2.5'].iloc[current_candle]
+    if (ema_sig==1 and df['Close'].iloc[current_candle]<=df['BB_Upper'].iloc[current_candle]
     ):
         return 1
     
     
-    elif (ema_sig==-1 and df['Close'].iloc[current_candle]>=df['BBU_20_2.5'].iloc[current_candle]
+    elif (ema_sig==-1 and df['Close'].iloc[current_candle]>=df['BB_Upper'].iloc[current_candle]
     ):
         return -1
     return 0
@@ -36,7 +36,7 @@ def SIGNAL(df):
     return df['TOTAL_SIGNAL']
 #class Bollinger_EMA2(Strategy):
 class Bollinger_EMA2(TrailingStrategy):
-    mysize = 0.1
+
     slcoef = 1.9
     TPSLRatio = 1.7
 
@@ -47,8 +47,8 @@ class Bollinger_EMA2(TrailingStrategy):
 
 
 
-    mysize = 0.1
-    stop_range =1.7
+    mysize = 0.05
+    stop_range =1.9
     def init(self):
         super().init()
         super().set_trailing_sl(self.stop_range)
