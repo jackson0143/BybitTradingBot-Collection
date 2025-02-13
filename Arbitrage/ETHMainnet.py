@@ -141,14 +141,14 @@ def check_arbitrage_opportunity(uniswap_price, bybit_price, threshold=0.5):
 
     if price_difference_percentage > threshold:
         if uniswap_price < bybit_price:
-            print("📈 Arbitrage Opportunity: Buy on Uniswap, Sell on Bybit!")
+            print("Buy on Uniswap, Sell on Bybit!")
         else:
-            print("📉 Arbitrage Opportunity: Buy on Bybit, Sell on Uniswap!")
+            print(" Buy on Bybit, Sell on Uniswap!")
     else:
-        print("No profitable arbitrage opportunity found.")
+        print("No opportunity found.")
 
 def execute_arbitrage():
-    """Fetch prices and check for arbitrage opportunities."""
+
     while True:
         uniswap_price = get_uniswap_price(USDC_ADDRESS, WETH_ADDRESS)
         bybit_price = get_bybit_price('ETHUSDT')

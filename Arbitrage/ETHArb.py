@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 
-
+from constants import *
+from abis import *
 #connect to Bybit
 session = HTTP(
             testnet=False,
@@ -16,97 +17,27 @@ session = HTTP(
 
 MODES = {
     "ETH_MAINNET": {
-        "rpc_url": "https://eth-mainnet.g.alchemy.com/v2/UOBeAHf4jluntGlzzWNaEi3pWwl7MKBF",
-        "uniswap_v2_factory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-        "usdc_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        "weth_address": "0xC02aaa39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "rpc_url": RPC_URL_MAINNET,
+
+        "usdc_address": USDC_ADDRESS_MAINNET,
+        "weth_address": WETH_ADDRESS_MAINNET,
     },
     "ARBITRUM": {
-        "rpc_url": "https://arb-mainnet.g.alchemy.com/v2/UOBeAHf4jluntGlzzWNaEi3pWwl7MKBF",
-        "uniswap_v2_factory": "0xf1D7CC64Fb4452F05c498126312eBE29f30Fbcf9",
-        "usdc_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-        "weth_address": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+        "rpc_url": RPC_URL_ARBITRUM,
+        "usdc_address": USDC_ADDRESS_ARBITRUM,
+        "weth_address": WETH_ADDRESS_ARBITRUM,
     },
 }
-NETWORK_MODE = "ARBITRUM" 
-ALCHEMY_RPC_URL = MODES[NETWORK_MODE]["rpc_url"]
-UNISWAP_V2_FACTORY = MODES[NETWORK_MODE]["uniswap_v2_factory"]
+NETWORK_MODE = "ETH_MAINNET" 
 
 USDC_ADDRESS = Web3.to_checksum_address(MODES[NETWORK_MODE]["usdc_address"])
 WETH_ADDRESS = Web3.to_checksum_address(MODES[NETWORK_MODE]["weth_address"])
 
-web3 = Web3(Web3.HTTPProvider(ALCHEMY_RPC_URL))
+web3 = Web3(Web3.HTTPProvider(RPC_URL_MAINNET))
 
 
-UNISWAP_V2_FACTORY_ABI = '''
-[
-    {
-        "constant": true,
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "tokenA",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "tokenB",
-                "type": "address"
-            }
-        ],
-        "name": "getPair",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "pair",
-                "type": "address"
-            }
-        ],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
-    }
-]
-'''
-UNISWAP_V2_PAIR_ABI = '''
-[
-    {
-        "constant": true,
-        "inputs": [],
-        "name": "token0",
-        "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "constant": true,
-        "inputs": [],
-        "name": "token1",
-        "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "constant": true,
-        "inputs": [],
-        "name": "getReserves",
-        "outputs": [
-            {"internalType": "uint112", "name": "reserve0", "type": "uint112"},
-            {"internalType": "uint112", "name": "reserve1", "type": "uint112"},
-            {"internalType": "uint32", "name": "blockTimestampLast", "type": "uint32"}
-        ],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
-    }
-]
-'''
 #init factory contract
 factory_contract = web3.eth.contract(address=UNISWAP_V2_FACTORY, abi=UNISWAP_V2_FACTORY_ABI)
-
-
 
 
 
@@ -126,9 +57,6 @@ def get_uniswap_price_factory(TOKEN_A, TOKEN_B):
         reserves = pair_contract.functions.getReserves().call()
         token0 = pair_contract.functions.token0().call()
         token1 = pair_contract.functions.token1().call()
-
-
-
 
         if token0 == WETH_ADDRESS:
             weth_reserve = reserves[0] / 10**18
@@ -172,18 +100,18 @@ def check_arbitrage_opportunity(uniswap_price, bybit_price, threshold=0.5):
 
     if price_difference_percentage > threshold:
         if uniswap_price < bybit_price:
-            print("📈 Arbitrage Opportunity: Buy on Uniswap, Sell on Bybit!")
+            print("Buy on Uniswap, Sell on Bybit!")
         else:
-            print("📉 Arbitrage Opportunity: Buy on Bybit, Sell on Uniswap!")
+            print("Buy on Bybit, Sell on Uniswap!")
     else:
-        print("No profitable arbitrage opportunity found.")
+        print("No opportunity found.")
 
 def execute_arbitrage():
-    """Fetch prices and check for arbitrage opportunities."""
+
     while True:
         uniswap_price = get_uniswap_price_factory(USDC_ADDRESS, WETH_ADDRESS)
         bybit_price = get_bybit_price('ETHUSDT')
-        print(f"📊 Uniswap ({NETWORK_MODE}) Price: {uniswap_price}, Bybit Price: {bybit_price}")
+        print(f"({NETWORK_MODE}) Price: {uniswap_price}, Bybit Price: {bybit_price}")
         check_arbitrage_opportunity(uniswap_price, bybit_price)
 
 
