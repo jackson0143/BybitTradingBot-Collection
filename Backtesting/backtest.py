@@ -19,7 +19,7 @@ load_dotenv()
 
 
 from Strategies.Bollinger_EMA import Bollinger_EMA
-from Strategies.Bollinger_EMA_2 import Bollinger_EMA2
+
 from Strategies.rsi_crossover import RSI_crossover
 from Strategies.test import TestStrategy
 from Strategies.MACD_RSI_BOL import MACD_RSI_BB_Trailing
@@ -318,17 +318,16 @@ if __name__ == "__main__":
 
     strategies = {
     'Bollinger_EMA': Bollinger_EMA,
-    'Bollinger_EMA2': Bollinger_EMA2,
     'RSI_Crossover': RSI_crossover,
     'TestStrategy': TestStrategy,
     'MACD_RSI_BB_Trailing': MACD_RSI_BB_Trailing,
     'Bollinger_VWAP':Bollinger_VWAP,#incomplete
     'Bollinger_RSIonly': Bollinger_RSIonly
 }
-    symbol='BTCUSDT'
+    symbol='ETHUSDT'
     interval = Client.KLINE_INTERVAL_5MINUTE
     #category = 'linear'
-    start_date = '6 january 2025'
+    start_date = '1 december 2024'
     df = fetch_market_data_binance(symbol,interval, start_date)
 
     symbols =  ['BTCUSDT', 'SOLUSDT', 'SUIUSDT', 'ETHUSDT', 'XRPUSDT', 'ENAUSDT','DOGEUSDT','LTCUSDT', 'LINKUSDT', 'HIVEUSDT',  'RUNEUSDT', 'AVAXUSDT', 'POPCATUSDT', 'ONDOUSDT', 'PNUTUSDT', 'MEUSDT', 'SWARMSUSDT']
@@ -344,7 +343,8 @@ if __name__ == "__main__":
         'slow_ema': 'Slow_EMA',
         'backcandles': 6,
         'col_name': 'TOTAL_SIGNAL'
-    }}
+    }},
+   # {'type': 'vwap', 'params': {'length': 7}},
 ]
 
     params = {
@@ -354,25 +354,26 @@ if __name__ == "__main__":
         #'fast_ema_len': range(1,10,1),
         #'slow_ema_len':range(10,20,1),
         #'macd_signal':  range(5, 10, 1),
-        'mysize': [i / 100 for i in range(5, 100,5)],
-        'stop_range':[i / 10 for i in range(11, 51,2)],
+        #'mysize': [i / 100 for i in range(5, 100,5)],
+        #'stop_range':[i / 10 for i in range(11, 51,2)],
         #'bb_len': range(2, 40, 2),
+        'tpperc': [i / 100 for i in range(1, 15,1)],
+        'slperc': [i / 100 for i in range(1, 15,1)],
         #'bb_std': [i / 10 for i in range(15, 31)],
         #'slcoef':[i/10 for i in range(10, 41)],
         #'TPcoef': [i/10 for i in range(10, 41)]
     }
 
-            
+
     df = apply_all_indicators(df, custom_indicators)
+
     # sleep(2)
     # fig = plot_graph(df, custom_indicators)  
     # sleep(2)
-    # bt, stats = run_single_strategy(df, 'MACD_RSI_BB_Trailing', cash = 1000000, commission=0.0006, margin = 1/20, hedging = True)
-    # print(stats)
-    # print(stats._trades)
-    # bt.plot()
+    #bt, stats = run_single_strategy(df, 'Bollinger_EMA', cash = 1000000, commission=0.0006, margin = 1/10, hedging = True)
 
 
-    #stats = optimize_strategy(backtest=bt, params=params, maximize='Sharpe Ratio', show_heatmap=True )
+    #stats = optimize_strategy(backtest=bt, params=params, maximize='Return [%]', show_heatmap=True )
+    #print(stats)
     #bt.plot()
-    stats = mass_run_symbols(symbols, interval, start_date, 'MACD_RSI_BB_Trailing',cash=100000, commission=0.0006, margin=1/20, hedging=True)
+    stats = mass_run_symbols(symbols, interval, start_date, 'Bollinger_EMA',cash=1000000, commission=0.0006, margin=1/10, hedging=True)

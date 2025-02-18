@@ -59,7 +59,7 @@ class MACD_RSI_BB_Trailing(TrailingStrategy):
     rsi_period = 14
     macd_fast = 14
     macd_slow = 27
-    macd_signal = 9
+    macd_signal_val = 9
     ema_len = 200
 
     bb_period = 20
@@ -71,7 +71,7 @@ class MACD_RSI_BB_Trailing(TrailingStrategy):
         super().init()
         super().set_trailing_sl(self.stop_range)    
         # MACD
-        macd = self.I(ta.macd, pd.Series(self.data.Close), fast=self.macd_fast, slow=self.macd_slow, signal=self.macd_signal)
+        macd = self.I(ta.macd, pd.Series(self.data.Close), fast=self.macd_fast, slow=self.macd_slow, signal=self.macd_signal_val)
         self.macd_line = macd[0]
         self.macd_signal = macd[2]
 
@@ -90,10 +90,10 @@ class MACD_RSI_BB_Trailing(TrailingStrategy):
         # Buy Signal
         #if macd cross upwards, BELOW 0 line, and above the 200-EMA
         #if (crossover(self.macd_line, self.macd_signal) and self.macd_line[-1]<0 and self.data.Close[-1]>self.ema[-1] ):
-        if (crossover(self.macd_line, self.macd_signal) and self.macd_line[-1]<0 and self.rsi[-1]<30 ):
+        if (crossover(self.macd_line, self.macd_signal) and self.macd_line[-1]<0 ):
             
             self.buy(size=self.mysize)
-        elif (crossover(self.macd_signal, self.macd_line)and self.macd_line[-1]>0 and self.rsi[-1]>70):
+        elif (crossover(self.macd_signal, self.macd_line)and self.macd_line[-1]>0 ):
             
             self.sell(size=self.mysize)
 

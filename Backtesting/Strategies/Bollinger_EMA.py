@@ -37,12 +37,12 @@ def total_signal(fast_ema, slow_ema, close, bbl, bbu, backcandles):
             return 0
     return [compute_signal(i) if i >= backcandles-1 else 0 for i in range(len(close))]
 
-#class Bollinger_EMA(Strategy):
-class Bollinger_EMA(TrailingStrategy):
+class Bollinger_EMA(Strategy):
+#class Bollinger_EMA(TrailingStrategy):
     mysize = 0.05
-    slcoef = 1.9
-    TPSLRatio = 1.7
 
+    slperc = 0.06
+    tpperc = 0.012
     #These are indicator params dont change
     fast_ema_len=7
     slow_ema_len=15
@@ -51,11 +51,11 @@ class Bollinger_EMA(TrailingStrategy):
     bb_std = 2.5
     backcandles = 6
 
-    stop_range =1.9
+    #stop_range =1.9
 
     def init(self):
         super().init()
-        super().set_trailing_sl(self.stop_range)
+        #super().set_trailing_sl(self.stop_range)
         self.slow_ema = self.I(ta.ema, pd.Series(self.data.Close), self.slow_ema_len)
         self.fast_ema = self.I(ta.ema, pd.Series(self.data.Close), self.fast_ema_len)
         #self.rsi = self.I(ta.rsi, pd.Series(self.data.Close), self.rsi_window)
@@ -70,26 +70,24 @@ class Bollinger_EMA(TrailingStrategy):
 
     def next(self):
         super().next()
-        slatr = self.slcoef * self.atr[-1]
-        TPSLRatio = self.TPSLRatio
 
         price = self.data.Close[-1]
 
         if self.signal1[-1]==1 :
  
            #long position
-            sl1 = self.data.Close[-1] - slatr
-            tp1 = self.data.Close[-1] + slatr * TPSLRatio
-            #self.buy(sl=sl1, tp=tp1, size = self.mysize )
-            self.buy( size = self.mysize )
+            sl1 = self.data.Close[-1] - self.data.Close[-1]*self.slperc
+            tp1 = self.data.Close[-1] + self.data.Close[-1]*self.tpperc
+            self.buy(sl=sl1, tp=tp1, size = self.mysize )
+            #self.buy( size = self.mysize )
          
 
             
         elif self.signal1[-1]==-1:       
-            sl1 = self.data.Close[-1] + slatr
-            tp1 = self.data.Close[-1] - slatr * TPSLRatio
-            #self.sell(sl=sl1, tp=tp1, size = self.mysize)
-            self.sell( size = self.mysize)
+            sl1 = self.data.Close[-1] + self.data.Close[-1]*self.slperc
+            tp1 = self.data.Close[-1] - self.data.Close[-1]*self.tpperc
+            self.sell(sl=sl1, tp=tp1, size = self.mysize)
+            #self.sell( size = self.mysize)
 
           
 

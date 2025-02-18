@@ -62,7 +62,7 @@ class Bollinger_RSIonly(Strategy):
 
     mysize = 0.1
     slcoef = 2.7
-    TPcoef = 1.2
+    TPcoef = 2.0
     
     def init(self):
         super().init()
